@@ -27,6 +27,7 @@ import javax.enterprise.inject.spi.InjectionPoint;
 import javax.enterprise.inject.spi.ProcessBean;
 
 import org.apache.aries.cdi.api.Component;
+import org.apache.aries.cdi.api.Config;
 import org.apache.aries.cdi.api.Reference;
 
 @ApplicationScoped
@@ -52,7 +53,8 @@ public class OsgiExtension implements Extension {
         for (InjectionPoint ip : event.getBean().getInjectionPoints()) {
             Reference ref = ip.getAnnotated().getAnnotation(Reference.class);
             Component cmp = ip.getAnnotated().getAnnotation(Component.class);
-            if (ref != null || cmp != null) {
+            Config    cfg = ip.getAnnotated().getAnnotation(Config.class);
+            if (ref != null || cmp != null || cfg != null) {
                 if (bean.getScope() != Component.class) {
                     throw new IllegalArgumentException("Beans with @Reference injection points should be annotated with @Component");
                 }
@@ -67,6 +69,9 @@ public class OsgiExtension implements Extension {
                 }
                 if (cmp != null) {
                     descriptor.addDependency(ip);
+                }
+                if (cfg != null) {
+                    descriptor.addConfig(ip);
                 }
             }
         }

@@ -18,60 +18,63 @@ package org.apache.aries.cdi;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
-import javax.enterprise.inject.Any;
-import javax.enterprise.util.AnnotationLiteral;
 import javax.inject.Inject;
+import java.util.Dictionary;
+import java.util.Hashtable;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.aries.cdi.api.Component;
-import org.apache.aries.cdi.api.Reference;
+import org.apache.aries.cdi.api.Config;
+import org.apache.aries.cdi.api.Immediate;
 import org.junit.Assert;
 import org.junit.Test;
-import org.osgi.framework.ServiceRegistration;
+import org.osgi.service.cm.ConfigurationAdmin;
 
-public class MandatoryLazyReferenceTest extends AbstractTest {
+public class MandatoryConfigTest extends AbstractTest {
 
     @Test
     public void test() throws Exception {
+        startConfigAdmin();
         createCdi(Hello.class);
 
         Assert.assertEquals(0, Hello.created.get());
         Assert.assertEquals(0, Hello.destroyed.get());
 
-        ServiceRegistration<Service> registration = register(Service.class, () -> "Hello world !!");
+        // create configuration
+        ConfigurationAdmin cm = getService(ConfigurationAdmin.class);
+        Dictionary<String, Object> config = new Hashtable<>();
+        config.put("host", "localhost");
+        cm.getConfiguration(MyConfig.class.getName()).update(config);
 
-        Assert.assertEquals(0, Hello.created.get());
-        Assert.assertEquals(0, Hello.destroyed.get());
-        Assert.assertNull(Hello.instance.get());
+        synchronized (Hello.instance) {
+            Hello.instance.wait();
+        }
 
-        // TODO: how to get the bean correctly ?
-        Hello hello = weld.select(Hello.class, AnyLiteral.INSTANCE).get();
+        Assert.assertEquals("Hello world at localhost:8234", Hello.instance.get().sayHelloWorld());
 
         Assert.assertEquals(1, Hello.created.get());
         Assert.assertEquals(0, Hello.destroyed.get());
-        Assert.assertNotNull(Hello.instance.get());
 
-        registration.unregister();
+        // delete configuration
+        cm.getConfiguration(MyConfig.class.getName()).delete();
+
+        synchronized (Hello.instance) {
+            Hello.instance.wait();
+        }
 
         Assert.assertEquals(1, Hello.created.get());
         Assert.assertEquals(1, Hello.destroyed.get());
-        Assert.assertNull(Hello.instance.get());
     }
 
-    static class AnyLiteral extends AnnotationLiteral<Any> implements Any {
+    @interface MyConfig {
 
-        public static AnyLiteral INSTANCE = new AnyLiteral();
-
-    }
-
-    public interface Service {
-
-        String hello();
+        String host() default "0.0.0.0";
+        int port() default 8234;
 
     }
 
-    @Component
+    @Immediate @Component
     public static class Hello {
 
         static final AtomicInteger created = new AtomicInteger();
@@ -79,25 +82,31 @@ public class MandatoryLazyReferenceTest extends AbstractTest {
         static final AtomicReference<Hello> instance = new AtomicReference<>();
 
         @Inject
-        @Reference
-        Service service;
+        @Config
+        MyConfig config;
 
         @PostConstruct
         public void init() {
             created.incrementAndGet();
-            instance.compareAndSet(null, this);
+            instance.set(this);
             System.err.println("Creating Hello instance");
+            synchronized (instance) {
+                instance.notifyAll();
+            }
         }
 
         @PreDestroy
         public void destroy() {
             destroyed.incrementAndGet();
-            instance.compareAndSet(this, null);
+            instance.set(null);
             System.err.println("Destroying Hello instance");
+            synchronized (instance) {
+                instance.notifyAll();
+            }
         }
 
         public String sayHelloWorld() {
-            return service.hello();
+            return "Hello world at " + config.host() + ":" + config.port();
         }
     }
 

@@ -22,13 +22,18 @@ import java.util.Map;
 import java.util.ServiceLoader;
 
 import org.apache.aries.cdi.impl.osgi.BundleContextHolder;
+import org.apache.aries.cdi.impl.osgi.OsgiExtension;
+import org.jboss.weld.environment.se.Weld;
 import org.jboss.weld.environment.se.WeldContainer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
+import org.osgi.framework.BundleContext;
 import org.osgi.framework.BundleException;
 import org.osgi.framework.Constants;
+import org.osgi.framework.ServiceReference;
+import org.osgi.framework.ServiceRegistration;
 import org.osgi.framework.launch.Framework;
 import org.osgi.framework.launch.FrameworkFactory;
 
@@ -65,4 +70,33 @@ public abstract class AbstractTest {
         }
     }
 
+    protected BundleContext getBundleContext() {
+        return framework.getBundleContext();
+    }
+
+    protected void startConfigAdmin() {
+        new org.apache.felix.cm.impl.ConfigurationManager().start(getBundleContext());
+    }
+
+    protected <T> T getService(Class<T> clazz) {
+        ServiceReference<T> ref = getBundleContext().getServiceReference(clazz);
+        if (ref != null) {
+            return getBundleContext().getService(ref);
+        } else {
+            return null;
+        }
+    }
+
+    protected <T> ServiceRegistration<T> register(Class<T> clazz, T t) {
+        return getBundleContext().registerService(clazz, t, null);
+    }
+
+    protected WeldContainer createCdi(Class... classes) {
+        weld = new Weld()
+                .disableDiscovery()
+                .beanClasses(classes)
+                .extensions(new OsgiExtension())
+                .initialize();
+        return weld;
+    }
 }

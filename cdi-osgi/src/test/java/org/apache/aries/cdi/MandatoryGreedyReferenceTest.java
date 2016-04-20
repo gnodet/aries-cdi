@@ -18,21 +18,22 @@ package org.apache.aries.cdi;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
-import javax.enterprise.inject.Any;
-import javax.enterprise.util.AnnotationLiteral;
 import javax.inject.Inject;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.aries.cdi.api.Component;
+import org.apache.aries.cdi.api.Greedy;
+import org.apache.aries.cdi.api.Immediate;
 import org.apache.aries.cdi.api.Reference;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.osgi.framework.ServiceRegistration;
 
-public class MandatoryLazyReferenceTest extends AbstractTest {
+public class MandatoryGreedyReferenceTest extends AbstractTest {
 
     @Test
+    @Ignore
     public void test() throws Exception {
         createCdi(Hello.class);
 
@@ -41,28 +42,13 @@ public class MandatoryLazyReferenceTest extends AbstractTest {
 
         ServiceRegistration<Service> registration = register(Service.class, () -> "Hello world !!");
 
-        Assert.assertEquals(0, Hello.created.get());
-        Assert.assertEquals(0, Hello.destroyed.get());
-        Assert.assertNull(Hello.instance.get());
-
-        // TODO: how to get the bean correctly ?
-        Hello hello = weld.select(Hello.class, AnyLiteral.INSTANCE).get();
-
         Assert.assertEquals(1, Hello.created.get());
         Assert.assertEquals(0, Hello.destroyed.get());
-        Assert.assertNotNull(Hello.instance.get());
 
         registration.unregister();
 
         Assert.assertEquals(1, Hello.created.get());
         Assert.assertEquals(1, Hello.destroyed.get());
-        Assert.assertNull(Hello.instance.get());
-    }
-
-    static class AnyLiteral extends AnnotationLiteral<Any> implements Any {
-
-        public static AnyLiteral INSTANCE = new AnyLiteral();
-
     }
 
     public interface Service {
@@ -71,28 +57,25 @@ public class MandatoryLazyReferenceTest extends AbstractTest {
 
     }
 
-    @Component
+    @Immediate @Component
     public static class Hello {
 
         static final AtomicInteger created = new AtomicInteger();
         static final AtomicInteger destroyed = new AtomicInteger();
-        static final AtomicReference<Hello> instance = new AtomicReference<>();
 
         @Inject
-        @Reference
+        @Greedy @Reference
         Service service;
 
         @PostConstruct
         public void init() {
             created.incrementAndGet();
-            instance.compareAndSet(null, this);
             System.err.println("Creating Hello instance");
         }
 
         @PreDestroy
         public void destroy() {
             destroyed.incrementAndGet();
-            instance.compareAndSet(this, null);
             System.err.println("Destroying Hello instance");
         }
 

@@ -32,7 +32,12 @@
     <dependencies>
         <dependency>
             <groupId>org.osgi</groupId>
-            <artifactId>org.osgi.core</artifactId>
+            <artifactId>osgi.core</artifactId>
+            <version>6.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.osgi</groupId>
+            <artifactId>osgi.enterprise</artifactId>
             <version>6.0.0</version>
         </dependency>
         <dependency>
@@ -40,6 +45,16 @@
             <artifactId>org.apache.felix.utils</artifactId>
             <version>1.8.0</version>
             <scope>provided</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.osgi</groupId>
+                    <artifactId>org.osgi.core</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.osgi</groupId>
+                    <artifactId>org.osgi.compendium</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.apache.karaf</groupId>
@@ -64,6 +79,12 @@
             <groupId>org.apache.felix</groupId>
             <artifactId>org.apache.felix.framework</artifactId>
             <version>5.4.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.felix</groupId>
+            <artifactId>org.apache.felix.configadmin</artifactId>
+            <version>1.8.8</version>
             <scope>test</scope>
         </dependency>
         <!--
