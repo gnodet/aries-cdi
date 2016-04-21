@@ -28,6 +28,7 @@ import org.apache.aries.cdi.api.Component;
 import org.apache.aries.cdi.api.Config;
 import org.apache.aries.cdi.api.Immediate;
 import org.apache.aries.cdi.api.Optional;
+import org.apache.aries.cdi.impl.osgi.BundleContextHolder;
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -35,9 +36,10 @@ import org.osgi.service.cm.ConfigurationAdmin;
 
 public class OptionalConfigTest extends AbstractTest {
 
-    @Test
+    @Test(timeout = 1000)
     @Ignore
     public void test() throws Exception {
+        BundleContextHolder.setBundleContext(getBundleContext());
         startConfigAdmin();
         createCdi(Hello.class);
 

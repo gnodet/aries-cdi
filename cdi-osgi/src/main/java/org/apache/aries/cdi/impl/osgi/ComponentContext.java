@@ -22,12 +22,13 @@ import javax.enterprise.context.spi.CreationalContext;
 import java.lang.annotation.Annotation;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.aries.cdi.api.Component;
 
 public class ComponentContext implements AlterableContext {
 
-    private Map<Contextual<?>, Holder<?>> store = new HashMap<>();
+    private Map<Contextual<?>, Holder<?>> store = new ConcurrentHashMap<>();
 
     @Override
     public Class<? extends Annotation> getScope() {

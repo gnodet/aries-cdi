@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.aries.cdi.api.Component;
+import org.apache.aries.cdi.impl.dm.DependencyManager;
 import org.osgi.framework.BundleContext;
 
 public class ComponentRegistry {
@@ -37,9 +38,16 @@ public class ComponentRegistry {
     private final BundleContext bundleContext;
     private final Map<Bean<?>, ComponentDescriptor<?>> descriptors = new HashMap<>();
 
+    private final DependencyManager dm;
+
     public ComponentRegistry(BeanManager beanManager, BundleContext bundleContext) {
         this.beanManager = beanManager;
         this.bundleContext = bundleContext;
+        this.dm = new DependencyManager(bundleContext);
+    }
+
+    public DependencyManager getDm() {
+        return dm;
     }
 
     public void start(AfterBeanDiscovery event) {

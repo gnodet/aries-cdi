@@ -21,38 +21,35 @@ import javax.enterprise.inject.spi.AfterBeanDiscovery;
 import javax.enterprise.inject.spi.Bean;
 import javax.enterprise.inject.spi.InjectionPoint;
 import java.lang.annotation.Annotation;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Proxy;
 import java.lang.reflect.Type;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Dictionary;
 import java.util.HashSet;
-import java.util.Hashtable;
+import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 
-import org.apache.aries.cdi.api.Component;
 import org.apache.aries.cdi.api.Config;
 import org.apache.aries.cdi.api.Immediate;
-import org.apache.karaf.util.tracker.SingleServiceTracker;
-import org.apache.karaf.util.tracker.SingleServiceTracker.SingleServiceListener;
-import org.osgi.framework.BundleContext;
-import org.osgi.framework.Constants;
-import org.osgi.framework.InvalidSyntaxException;
-import org.osgi.framework.wiring.BundleWiring;
-import org.osgi.service.cm.ConfigurationException;
-import org.osgi.service.cm.ManagedService;
+import org.apache.aries.cdi.api.Optional;
+import org.apache.aries.cdi.impl.dm.ComponentState;
+import org.apache.aries.cdi.impl.dm.ComponentImpl;
+import org.apache.aries.cdi.impl.dm.ConfigurationDependencyImpl;
+import org.apache.aries.cdi.impl.dm.Event;
+import org.apache.aries.cdi.impl.dm.ServiceDependencyImpl;
 
-public class ComponentDescriptor<S> extends Satisfiable {
+public class ComponentDescriptor<S> {
 
     private final Bean<S> bean;
     private final ComponentRegistry registry;
+    private final ComponentImpl component;
+    private final List<Dependency> dependencies = new ArrayList<>();
 
     public ComponentDescriptor(Bean<S> bean, ComponentRegistry registry) {
         this.bean = bean;
         this.registry = registry;
-        satisfied(true);
+        this.component = registry.getDm().createComponent();
     }
 
     public Bean<S> getBean() {
@@ -73,173 +70,100 @@ public class ComponentDescriptor<S> extends Satisfiable {
     }
 
     public void addReference(InjectionPoint ip) {
-        addSatisfiable(new ReferenceDependency(ip));
+        dependencies.add(new ReferenceDependency(ip));
     }
 
     public void addDependency(InjectionPoint ip) {
-        addSatisfiable(new ComponentDependency(ip));
+        dependencies.add(new ComponentDependency(ip));
     }
 
     public void addConfig(InjectionPoint ip) {
-        addSatisfiable(new ConfigDependency(ip));
+        dependencies.add(new ConfigDependency(ip));
     }
 
     public void preStart(AfterBeanDiscovery event) {
-        super.preStart(event);
+        dependencies.forEach(s -> s.preStart(event));
     }
 
-    @Override
     public void start() {
-        super.start();
-        if (satisfied()) {
-            registry.activate(this);
-        }
-    }
-
-    @Override
-    public void accept(Satisfiable satisfiable) {
-        super.accept(satisfiable);
-        if (satisfied()) {
-            registry.activate(this);
-        } else {
-            registry.deactivate(this);
-        }
+        component.add((c, state) -> {
+            if (state == ComponentState.TRACKING_OPTIONAL) {
+                registry.activate(ComponentDescriptor.this);
+            } else {
+                registry.deactivate(ComponentDescriptor.this);
+            }
+        });
+        getRegistry().getDm().add(component);
     }
 
     @Override
     public String toString() {
         return "Component[" +
                 "bean=" + bean +
-                ", satisfied=" + satisfied() +
+                ", component=" + component +
                 ']';
     }
 
-    public class ReferenceDependency extends Satisfiable {
+    public interface Dependency {
+
+        void preStart(AfterBeanDiscovery event);
+
+    }
+    public class ReferenceDependency implements Dependency {
 
         protected final InjectionPoint injectionPoint;
-        protected final SingleServiceTracker<?> tracker;
         protected final Class<?> clazz;
+        protected final ServiceDependencyImpl sd;
 
         public ReferenceDependency(InjectionPoint injectionPoint) {
             this.injectionPoint = injectionPoint;
-            BundleContext bundleContext = getRegistry().getBundleContext();
             Type type = injectionPoint.getType();
             if (type instanceof ParameterizedType) {
                 clazz = (Class) ((ParameterizedType) type).getRawType();
             } else {
                 clazz = (Class) type;
             }
-            try {
-                this.tracker = new SingleServiceTracker<>(bundleContext, clazz, new SingleServiceListener() {
-                    @Override
-                    public void serviceFound() {
-                        satisfied(true);
-                    }
-                    @Override
-                    public void serviceLost() {
-                        satisfied(false);
-                    }
-                    @Override
-                    public void serviceReplaced() {
-                        serviceLost();
-                        serviceFound();
-                    }
-                });
-            } catch (InvalidSyntaxException e) {
-                throw new RuntimeException("Unable to track OSGi dependency", e);
-            }
-        }
-
-        @Override
-        public void addSatisfiable(Satisfiable satisfiable) {
-            throw new UnsupportedOperationException();
+            boolean optional = injectionPoint.getAnnotated().isAnnotationPresent(Optional.class);
+            sd = getRegistry().getDm().createServiceDependency()
+                    .setAutoConfig(false)
+                    .setRequired(!optional)
+                    .setService(clazz);
+            component.add(sd);
         }
 
         @Override
         public void preStart(AfterBeanDiscovery event) {
-            event.addBean(asBean());
+            event.addBean(new SimpleBean<>(clazz, injectionPoint, this::getService));
         }
 
-        @Override
-        public void start() {
-            tracker.open();
-        }
-
-        public Bean<?> asBean() {
-            return new Bean<Object>() {
-                @Override
-                public Class<?> getBeanClass() {
-                    return clazz;
-                }
-                @Override
-                public Set<InjectionPoint> getInjectionPoints() {
-                    return Collections.emptySet();
-                }
-                @Override
-                public boolean isNullable() {
-                    return false;
-                }
-                @Override
-                public Set<Type> getTypes() {
-                    return Collections.singleton(injectionPoint.getType());
-                }
-                @Override
-                public Set<Annotation> getQualifiers() {
-                    return new HashSet<>(injectionPoint.getQualifiers());
-                }
-                @Override
-                public Class<? extends Annotation> getScope() {
-                    return Component.class;
-                }
-                @Override
-                public String getName() {
-                    return null;
-                }
-                @Override
-                public Set<Class<? extends Annotation>> getStereotypes() {
-                    return Collections.emptySet();
-                }
-                @Override
-                public boolean isAlternative() {
-                    return false;
-                }
-                @Override
-                public Object create(CreationalContext<Object> creationalContext) {
-                    return tracker.getService();
-                }
-                @Override
-                public void destroy(Object instance, CreationalContext<Object> creationalContext) {
-                }
-            };
+        protected <T> T getService() {
+            return sd.getService().getEvent();
         }
     }
 
-    public class ComponentDependency extends Satisfiable {
+    public class ComponentDependency implements Dependency {
 
         protected final InjectionPoint injectionPoint;
 
         public ComponentDependency(InjectionPoint injectionPoint) {
             this.injectionPoint = injectionPoint;
-            satisfied(true);
         }
 
         @Override
         public void preStart(AfterBeanDiscovery event) {
-            super.preStart(event);
             Set<Annotation> qualifiersSet = injectionPoint.getQualifiers();
             Annotation[] qualifiers = qualifiersSet.toArray(new Annotation[qualifiersSet.size()]);
-            Satisfiable resolved = getRegistry().resolve(injectionPoint.getType(), qualifiers);
-            addSatisfiable(resolved);
+            ComponentDescriptor resolved = getRegistry().resolve(injectionPoint.getType(), qualifiers);
+            component.add(getRegistry().getDm().createComponentDependency().setComponent(resolved.component));
         }
 
     }
 
-    public class ConfigDependency extends Satisfiable implements ManagedService, InvocationHandler {
+    public class ConfigDependency implements Dependency {
 
         protected final InjectionPoint injectionPoint;
         protected final Class<?> clazz;
-        protected final String pid;
-        protected Dictionary<String, ?> properties;
+        protected final ConfigurationDependencyImpl cd;
 
         public ConfigDependency(InjectionPoint injectionPoint) {
             this.injectionPoint = injectionPoint;
@@ -253,95 +177,83 @@ public class ComponentDescriptor<S> extends Satisfiable {
                 throw new IllegalArgumentException("Configuration class should be an annotation: " + clazz.getName());
             }
 
-            // TODO: get pid, activate tracking, etc...
             Config config = injectionPoint.getAnnotated().getAnnotation(Config.class);
-            pid = config.pid().isEmpty() ? clazz.getName() : config.pid();
-        }
+            String pid = config.pid().isEmpty() ? clazz.getName() : config.pid();
+            boolean optional = injectionPoint.getAnnotated().isAnnotationPresent(Optional.class);
 
-        @Override
-        public void updated(Dictionary<String, ?> properties) throws ConfigurationException {
-            this.properties = properties;
-            satisfied(false);
-            if (properties != null) {
-                satisfied(true);
-            }
+            cd = getRegistry().getDm().createConfigurationDependency();
+            cd.setPid(pid);
+            cd.setRequired(!optional);
+            component.add(cd);
         }
 
         @Override
         public void preStart(AfterBeanDiscovery event) {
-            event.addBean(asBean());
+            event.addBean(new SimpleBean<>(clazz, injectionPoint, this::createConfig));
         }
 
-        @Override
-        public void start() {
-            BundleContext bundleContext = getRegistry().getBundleContext();
-            Dictionary<String, Object> props = new Hashtable<>();
-            props.put(Constants.SERVICE_PID, pid);
-            bundleContext.registerService(ManagedService.class, this, props);
-            super.start();
-        }
-
-        @Override
-        public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-            String name = method.getName();
-            Object val = properties != null ? properties.get(name) : null;
-            if (val == null) {
-                val = method.getDefaultValue();
-            }
-            return val;
-        }
-
+        @SuppressWarnings("unchecked")
         protected Object createConfig() {
-            ClassLoader classLoader = getRegistry().getBundleContext().getBundle().adapt(BundleWiring.class).getClassLoader();
-            return Proxy.newProxyInstance(classLoader, new Class[]{clazz}, this);
+            Event event = cd.getService();
+            return ((ComponentImpl) component).createConfigurationType(
+                    clazz, event.getEvent()
+            );
+        }
+    }
+
+    static class SimpleBean<T> implements Bean<T> {
+        private final Class clazz;
+        private final InjectionPoint injectionPoint;
+        private final Supplier<T> supplier;
+
+        public SimpleBean(Class clazz, InjectionPoint injectionPoint, Supplier<T> supplier) {
+            this.clazz = clazz;
+            this.injectionPoint = injectionPoint;
+            this.supplier = supplier;
         }
 
-        public Bean<?> asBean() {
-            return new Bean<Object>() {
-                @Override
-                public Class<?> getBeanClass() {
-                    return clazz;
-                }
-                @Override
-                public Set<InjectionPoint> getInjectionPoints() {
-                    return Collections.emptySet();
-                }
-                @Override
-                public boolean isNullable() {
-                    return false;
-                }
-                @Override
-                public Set<Type> getTypes() {
-                    return Collections.singleton(injectionPoint.getType());
-                }
-                @Override
-                public Set<Annotation> getQualifiers() {
-                    return new HashSet<>(injectionPoint.getQualifiers());
-                }
-                @Override
-                public Class<? extends Annotation> getScope() {
-                    return Component.class;
-                }
-                @Override
-                public String getName() {
-                    return null;
-                }
-                @Override
-                public Set<Class<? extends Annotation>> getStereotypes() {
-                    return Collections.emptySet();
-                }
-                @Override
-                public boolean isAlternative() {
-                    return false;
-                }
-                @Override
-                public Object create(CreationalContext<Object> creationalContext) {
-                    return createConfig();
-                }
-                @Override
-                public void destroy(Object instance, CreationalContext<Object> creationalContext) {
-                }
-            };
+        @Override
+        public Class<?> getBeanClass() {
+            return clazz;
+        }
+        @Override
+        public Set<InjectionPoint> getInjectionPoints() {
+            return Collections.emptySet();
+        }
+        @Override
+        public boolean isNullable() {
+            return false;
+        }
+        @Override
+        public Set<Type> getTypes() {
+            return Collections.singleton(injectionPoint.getType());
+        }
+        @Override
+        public Set<Annotation> getQualifiers() {
+            return new HashSet<>(injectionPoint.getQualifiers());
+        }
+        @Override
+        public Class<? extends Annotation> getScope() {
+            return org.apache.aries.cdi.api.Component.class;
+        }
+        @Override
+        public String getName() {
+            return null;
+        }
+        @Override
+        public Set<Class<? extends Annotation>> getStereotypes() {
+            return Collections.emptySet();
+        }
+        @Override
+        public boolean isAlternative() {
+            return false;
+        }
+        @Override
+        public T create(CreationalContext<T> creationalContext) {
+            return supplier.get();
+        }
+        @Override
+        public void destroy(T instance, CreationalContext<T> creationalContext) {
         }
     }
 
