@@ -28,7 +28,7 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.osgi.framework.ServiceRegistration;
 
-public class IndirectMandatoryReferenceTest extends AbstractTest {
+public class MandatoryIndirectReferenceTest extends AbstractTest {
 
     @Test
     public void test() throws Exception {
