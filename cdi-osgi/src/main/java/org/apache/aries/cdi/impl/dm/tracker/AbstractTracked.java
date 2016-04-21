@@ -36,7 +36,7 @@ import org.apache.aries.cdi.impl.dm.SerialExecutor;
  * @since 1.4
  */
 @SuppressWarnings({"rawtypes", "unchecked"})
-abstract class AbstractTracked {
+abstract class AbstractTracked<S, R, T> {
 	/* set this to true to compile in debug messages */
 	private static final boolean		DEBUG	= false;
 
@@ -45,7 +45,7 @@ abstract class AbstractTracked {
 	 * 
 	 * @GuardedBy this
 	 */
-	private Map			tracked;
+	private final Map<S, T>			tracked;
 
 	/**
 	 * Modification count. This field is initialized to zero and incremented by
@@ -69,7 +69,7 @@ abstract class AbstractTracked {
 	 * 
 	 * @GuardedBy this
 	 */
-	private final List			adding;
+	private final List<S>		adding;
 
 	/**
 	 * true if the tracked object is closed.
@@ -96,7 +96,7 @@ abstract class AbstractTracked {
 	 * 
 	 * @GuardedBy this
 	 */
-	private final LinkedList	initial;
+	private final LinkedList<S>	initial;
 	
 	private final SerialExecutor m_executor = new SerialExecutor(null);
 
@@ -104,17 +104,13 @@ abstract class AbstractTracked {
 	 * AbstractTracked constructor.
 	 */
     AbstractTracked() {
-	    this.tracked = new HashMap();
+	    tracked = new HashMap<>();
 	    trackingCount = 0;
-	    adding = new ArrayList(6);
-	    initial = new LinkedList();
+	    adding = new ArrayList<>(6);
+	    initial = new LinkedList<>();
 	    closed = false;
 	}
 	
-	void setTracked(HashMap map) {
-	    this.tracked = map;
-	}
-
 	/**
 	 * Set initial list of items into tracker before events begin to be
 	 * received.
@@ -126,13 +122,11 @@ abstract class AbstractTracked {
 	 *        entries in the list are ignored.
 	 * @GuardedBy this
 	 */
-    void setInitial(Object[] list) {
+    void setInitial(S[] list) {
 		if (list == null) {
 			return;
 		}
-		int size = list.length;
-		for (int i = 0; i < size; i++) {
-			Object item = list[i];
+		for (S item : list) {
 			if (item == null) {
 				continue;
 			}
@@ -153,7 +147,7 @@ abstract class AbstractTracked {
 	 */
 	void trackInitial() {
 		while (true) {
-			Object item;
+			S item;
 			synchronized (this) {
 				if (closed || (initial.size() == 0)) {
 					/*
@@ -169,8 +163,7 @@ abstract class AbstractTracked {
 				if (tracked.get(item) != null) {
 					/* if we are already tracking this item */
 					if (DEBUG) {
-						System.out
-								.println("AbstractTracked.trackInitial[already tracked]: " + item); //$NON-NLS-1$
+						System.out.println("AbstractTracked.trackInitial[already tracked]: " + item); //$NON-NLS-1$
 					}
 					continue; /* skip this item */
 				}
@@ -179,22 +172,13 @@ abstract class AbstractTracked {
 					 * if this item is already in the process of being added.
 					 */
 					if (DEBUG) {
-						System.out
-								.println("AbstractTracked.trackInitial[already adding]: " + item); //$NON-NLS-1$
+						System.out.println("AbstractTracked.trackInitial[already adding]: " + item); //$NON-NLS-1$
 					}
 					continue; /* skip this item */
 				}
 				adding.add(item);
 				final AbstractCustomizerActionSet actionSet = trackAdding(item, null);
-				m_executor.schedule(new Runnable() {
-
-					@Override
-					public void run() {
-						actionSet.execute();
-						
-					}
-					
-				});
+				m_executor.schedule(actionSet::execute);
 			}
 			if (DEBUG) {
 				System.out.println("AbstractTracked.trackInitial: " + item); //$NON-NLS-1$
@@ -209,7 +193,7 @@ abstract class AbstractTracked {
 		closed = true;
 	}
 
-	abstract AbstractCustomizerActionSet createCustomizerActionSet();
+	abstract AbstractCustomizerActionSet<S, R, T> createCustomizerActionSet();
 	
 	/**
 	 * Begin to track an item.
@@ -217,9 +201,9 @@ abstract class AbstractTracked {
 	 * @param item Item to be tracked.
 	 * @param related Action related object.
 	 */
-	AbstractCustomizerActionSet track(final Object item, final Object related) {
-		final Object object;
-		final AbstractCustomizerActionSet actionSet = createCustomizerActionSet();
+	AbstractCustomizerActionSet<S, R, T> track(final S item, final R related) {
+		final T object;
+		final AbstractCustomizerActionSet<S, R, T> actionSet = createCustomizerActionSet();
 		synchronized (this) {
 			if (closed) {
 				return actionSet;
@@ -229,8 +213,7 @@ abstract class AbstractTracked {
 				if (adding.contains(item)) {
 					/* if this item is already in the process of being added. */
 					if (DEBUG) {
-						System.out
-								.println("AbstractTracked.track[already adding]: " + item); //$NON-NLS-1$
+						System.out.println("AbstractTracked.track[already adding]: " + item); //$NON-NLS-1$
 					}
 					return actionSet;
 				}
@@ -238,8 +221,7 @@ abstract class AbstractTracked {
 			}
 			else { /* we are currently tracking this item */
 				if (DEBUG) {
-					System.out
-							.println("AbstractTracked.track[modified]: " + item); //$NON-NLS-1$
+					System.out.println("AbstractTracked.track[modified]: " + item); //$NON-NLS-1$
 				}
 				modified(); /* increment modification count */
 			}
@@ -267,12 +249,12 @@ abstract class AbstractTracked {
 	 * @param item Item to be tracked.
 	 * @param related Action related object.
 	 */
-	private AbstractCustomizerActionSet trackAdding(final Object item, final Object related) {
-		final AbstractCustomizerActionSet actionSet = createCustomizerActionSet();
+	private AbstractCustomizerActionSet<S, R, T> trackAdding(final S item, final R related) {
+		final AbstractCustomizerActionSet<S, R, T> actionSet = createCustomizerActionSet();
 		if (DEBUG) {
 			System.out.println("AbstractTracked.trackAdding: " + item); //$NON-NLS-1$
 		}
-		Object object = null;
+		T object = null;
 		boolean becameUntracked = false;
 		/* Call customizer outside of synchronized region */
 		try {
@@ -329,9 +311,9 @@ abstract class AbstractTracked {
 	 * @param item Item to be untracked.
 	 * @param related Action related object.
 	 */
-	AbstractCustomizerActionSet untrack(final Object item, final Object related) {
-		AbstractCustomizerActionSet actionSet = createCustomizerActionSet();
-		final Object object;
+	AbstractCustomizerActionSet<S, R, T> untrack(final S item, final R related) {
+		AbstractCustomizerActionSet<S, R, T> actionSet = createCustomizerActionSet();
+		final T object;
 		synchronized (this) {
 			if (initial.remove(item)) { /*
 										 * if this item is already in the list
@@ -400,7 +382,7 @@ abstract class AbstractTracked {
 	 * 
 	 * @GuardedBy this
 	 */
-	Object getCustomizedObject(final Object item) {
+	T getCustomizedObject(final S item) {
 		return tracked.get(item);
 	}
 
@@ -412,7 +394,7 @@ abstract class AbstractTracked {
 	 *         items or a new array large enough to hold the tracked items.
 	 * @GuardedBy this
 	 */
-	Object[] getTracked(final Object[] list) {
+	S[] getTracked(final S[] list) {
 		return tracked.keySet().toArray(list);
 	}
 
@@ -457,10 +439,10 @@ abstract class AbstractTracked {
 	 * @return Customized object for the tracked item or <code>null</code> if
 	 *         the item is not to be tracked.
 	 */
-	abstract Object customizerAdding(final Object item, final Object related);
+	abstract T customizerAdding(final S item, final R related);
 
 	/** marrs: Call the specific customizer added method. */
-	abstract void customizerAdded(final Object item, final Object related, final Object object);
+	abstract void customizerAdded(final S item, final R related, final T object);
 	
 	/**
 	 * Call the specific customizer modified method. This method must not be
@@ -470,8 +452,8 @@ abstract class AbstractTracked {
 	 * @param related Action related object.
 	 * @param object Customized object for the tracked item.
 	 */
-	abstract void customizerModified(final Object item, final Object related,
-			final Object object);
+	abstract void customizerModified(final S item, final R related,
+			final T object);
 
 	/**
 	 * Call the specific customizer removed method. This method must not be
@@ -481,6 +463,6 @@ abstract class AbstractTracked {
 	 * @param related Action related object.
 	 * @param object Customized object for the tracked item.
 	 */
-	abstract void customizerRemoved(final Object item, final Object related,
-			final Object object);
+	abstract void customizerRemoved(final S item, final R related,
+			final T object);
 }

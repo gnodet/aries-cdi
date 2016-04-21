@@ -18,6 +18,7 @@ package org.apache.aries.cdi;
 
 import java.io.File;
 import java.util.HashMap;
+import java.util.Hashtable;
 import java.util.Map;
 import java.util.ServiceLoader;
 
@@ -89,6 +90,12 @@ public abstract class AbstractTest {
 
     protected <T> ServiceRegistration<T> register(Class<T> clazz, T t) {
         return getBundleContext().registerService(clazz, t, null);
+    }
+
+    protected <T> ServiceRegistration<T> register(Class<T> clazz, T t, int ranking) {
+        Hashtable<String, Object> props = new Hashtable<>();
+        props.put(Constants.SERVICE_RANKING, ranking);
+        return getBundleContext().registerService(clazz, t, props);
     }
 
     protected WeldContainer createCdi(Class... classes) {

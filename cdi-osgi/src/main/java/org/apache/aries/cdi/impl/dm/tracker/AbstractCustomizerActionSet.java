@@ -26,33 +26,33 @@ import java.util.List;
  * 
  * @author <a href="mailto:dev@felix.apache.org">Felix Project Team</a>
  */
-public abstract class AbstractCustomizerActionSet {
+public abstract class AbstractCustomizerActionSet<S, R, T> {
 
 	enum Type { ADDED, MODIFIED, REMOVED }
 
-	final List<CustomizerAction> m_actions = new ArrayList<>();
+	final List<CustomizerAction<S, R, T>> m_actions = new ArrayList<>();
 
-	public void addCustomizerAdded(Object item, Object related, Object object) {
-		m_actions.add(new CustomizerAction(Type.ADDED, item, related, object));
+	public void addCustomizerAdded(S item, R related, T object) {
+		m_actions.add(new CustomizerAction<>(Type.ADDED, item, related, object));
 	}
 	
-	public void addCustomizerModified(Object item, Object related, Object object) {
-		m_actions.add(new CustomizerAction(Type.MODIFIED, item, related, object));
+	public void addCustomizerModified(S item, R related, T object) {
+		m_actions.add(new CustomizerAction<>(Type.MODIFIED, item, related, object));
 	}
 	
-	public void addCustomizerRemoved(Object item, Object related, Object object) {
-		m_actions.add(new CustomizerAction(Type.REMOVED, item, related, object));
+	public void addCustomizerRemoved(S item, R related, T object) {
+		m_actions.add(new CustomizerAction<>(Type.REMOVED, item, related, object));
 	}
 	
-	public void appendActionSet(AbstractCustomizerActionSet actionSet) {
-		for (CustomizerAction action : actionSet.getActions()) {
+	public void appendActionSet(AbstractCustomizerActionSet<S, R, T> actionSet) {
+		for (CustomizerAction<S, R, T> action : actionSet.getActions()) {
 			m_actions.add(action);
 		}
 	}
 	
 	abstract void execute();
 	
-	public List<CustomizerAction> getActions() {
+	public List<CustomizerAction<S, R, T>> getActions() {
 		return m_actions;
 	}
 	
@@ -61,13 +61,13 @@ public abstract class AbstractCustomizerActionSet {
 		return "AbstractCustomizerActionSet [m_actions=" + m_actions + "]";
 	}
 
-	static class CustomizerAction {
+	static class CustomizerAction<S, R, T> {
 		private final Type m_type;
-		private final Object m_item;
-		private final Object m_related;
-		private final Object m_object;
+		private final S m_item;
+		private final R m_related;
+		private final T m_object;
 		
-		public CustomizerAction(Type type, Object item, Object related, Object object) {
+		public CustomizerAction(Type type, S item, R related, T object) {
 			m_type = type;
 			m_item = item;
 			m_related = related;
@@ -78,15 +78,15 @@ public abstract class AbstractCustomizerActionSet {
 			return m_type;
 		}
 		
-		public Object getItem() {
+		public S getItem() {
 			return m_item;
 		}
 		
-		public Object getRelated() {
+		public R getRelated() {
 			return m_related;
 		}
 		
-		public Object getObject() {
+		public T getObject() {
 			return m_object;
 		}
 

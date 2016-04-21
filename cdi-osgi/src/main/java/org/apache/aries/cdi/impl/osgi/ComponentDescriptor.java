@@ -33,26 +33,35 @@ import java.util.function.Supplier;
 import org.apache.aries.cdi.api.Config;
 import org.apache.aries.cdi.api.Immediate;
 import org.apache.aries.cdi.api.Optional;
-import org.apache.aries.cdi.impl.dm.ComponentState;
+import org.apache.aries.cdi.impl.dm.AbstractDependency;
 import org.apache.aries.cdi.impl.dm.ComponentImpl;
+import org.apache.aries.cdi.impl.dm.ComponentState;
+import org.apache.aries.cdi.impl.dm.Configurable;
 import org.apache.aries.cdi.impl.dm.ConfigurationDependencyImpl;
 import org.apache.aries.cdi.impl.dm.Event;
 import org.apache.aries.cdi.impl.dm.ServiceDependencyImpl;
 
-public class ComponentDescriptor<S> {
+public class ComponentDescriptor<C> {
 
-    private final Bean<S> bean;
+    private final Bean<C> bean;
     private final ComponentRegistry registry;
     private final ComponentImpl component;
     private final List<Dependency> dependencies = new ArrayList<>();
 
-    public ComponentDescriptor(Bean<S> bean, ComponentRegistry registry) {
+    public ComponentDescriptor(Bean<C> bean, ComponentRegistry registry) {
         this.bean = bean;
         this.registry = registry;
-        this.component = registry.getDm().createComponent();
+        this.component = new ComponentImpl(registry.getBundleContext(), registry.getDm()) {
+            protected <D extends AbstractDependency<D, S, E>, S, E extends Event<S>>
+            void updateInstance(D dc, E event, boolean update, boolean add) {
+                registry.deactivate(ComponentDescriptor.this);
+                registry.activate(ComponentDescriptor.this);
+                super.updateInstance(dc, event, update, add);
+            }
+        };
     }
 
-    public Bean<S> getBean() {
+    public Bean<C> getBean() {
         return bean;
     }
 
@@ -113,7 +122,7 @@ public class ComponentDescriptor<S> {
 
         protected final InjectionPoint injectionPoint;
         protected final Class<?> clazz;
-        protected final ServiceDependencyImpl sd;
+        protected final ServiceDependencyImpl<?> sd;
 
         public ReferenceDependency(InjectionPoint injectionPoint) {
             this.injectionPoint = injectionPoint;
@@ -125,7 +134,6 @@ public class ComponentDescriptor<S> {
             }
             boolean optional = injectionPoint.getAnnotated().isAnnotationPresent(Optional.class);
             sd = getRegistry().getDm().createServiceDependency()
-                    .setAutoConfig(false)
                     .setRequired(!optional)
                     .setService(clazz);
             component.add(sd);
@@ -136,8 +144,8 @@ public class ComponentDescriptor<S> {
             event.addBean(new SimpleBean<>(clazz, injectionPoint, this::getService));
         }
 
-        protected <T> T getService() {
-            return sd.getService().getEvent();
+        protected Object getService() {
+            return sd.getService();
         }
     }
 
@@ -194,10 +202,7 @@ public class ComponentDescriptor<S> {
 
         @SuppressWarnings("unchecked")
         protected Object createConfig() {
-            Event event = cd.getService();
-            return ((ComponentImpl) component).createConfigurationType(
-                    clazz, event.getEvent()
-            );
+            return Configurable.create(clazz, cd.getService());
         }
     }
 

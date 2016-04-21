@@ -27,11 +27,11 @@ import org.osgi.framework.ServiceReference;
 /**
  * @author <a href="mailto:dev@felix.apache.org">Felix Project Team</a>
  */
-public class ServiceEventImpl extends Event {
+public class ServiceEventImpl<S> extends Event<S> {
     /**
      * The service reference on which a service dependency depends on
      */
-	private final ServiceReference m_reference; 
+	private final ServiceReference<S> m_reference;
 		
     /**
      * The bundle context of the bundle which has created the service dependency. If not null, 
@@ -46,11 +46,11 @@ public class ServiceEventImpl extends Event {
      */
 	private final Bundle m_bundle;
 	
-	public ServiceEventImpl(ServiceReference reference, Object service) {
+	public ServiceEventImpl(ServiceReference<S> reference, S service) {
 	    this(null, null, reference, service);
 	}
 
-    public ServiceEventImpl(Bundle bundle, BundleContext bundleContext, ServiceReference reference, Object service) {
+    public ServiceEventImpl(Bundle bundle, BundleContext bundleContext, ServiceReference<S> reference, S service) {
 	    super(service);
 	    m_bundle = bundle;
 	    m_bundleContext = bundleContext;
@@ -74,7 +74,7 @@ public class ServiceEventImpl extends Event {
 	/**
 	 * Returns the reference service dependency.
 	 */
-	public ServiceReference getReference() {
+	public ServiceReference<S> getReference() {
 		return m_reference;
 	}
 	    

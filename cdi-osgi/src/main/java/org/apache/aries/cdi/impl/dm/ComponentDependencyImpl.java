@@ -16,18 +16,13 @@
  */
 package org.apache.aries.cdi.impl.dm;
 
-public class ComponentDependencyImpl extends AbstractDependency<ComponentDependencyImpl> {
+public class ComponentDependencyImpl extends AbstractDependency<ComponentDependencyImpl, ComponentImpl, Event<ComponentImpl>> {
 
     private ComponentImpl component;
     private boolean satisfied;
 
     public ComponentDependencyImpl() {
         setRequired(true);
-    }
-
-    public ComponentDependencyImpl(ComponentDependencyImpl prototype) {
-        super(prototype);
-        this.component = prototype.component;
     }
 
     public ComponentDependencyImpl setComponent(ComponentImpl component) {
@@ -52,18 +47,8 @@ public class ComponentDependencyImpl extends AbstractDependency<ComponentDepende
             m_component.handleEvent(
                     this,
                     satisfied ? EventType.ADDED : EventType.REMOVED,
-                    new Event(component));
+                    new Event<>(component));
         }
-    }
-
-    @Override
-    public Class<?> getAutoConfigType() {
-        return null;
-    }
-
-    @Override
-    public ComponentDependencyImpl createCopy() {
-        return new ComponentDependencyImpl(this);
     }
 
     @Override

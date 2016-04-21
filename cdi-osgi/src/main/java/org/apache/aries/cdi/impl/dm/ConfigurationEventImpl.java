@@ -25,7 +25,7 @@ import java.util.Dictionary;
  * 
  * @author <a href="mailto:dev@felix.apache.org">Felix Project Team</a>
  */
-public class ConfigurationEventImpl extends Event {
+public class ConfigurationEventImpl extends Event<Dictionary<String, Object>> {
     private final String m_pid;
     
     public ConfigurationEventImpl(String pid, Dictionary<String, Object> conf) {
@@ -42,7 +42,6 @@ public class ConfigurationEventImpl extends Event {
         return m_pid.compareTo(((ConfigurationEventImpl) other).m_pid);
     }
 
-    @SuppressWarnings("unchecked")
 	@Override
     public Dictionary<String, Object> getProperties() {
         return getEvent();

@@ -18,12 +18,9 @@
  */
 package org.apache.aries.cdi.impl.dm;
 
-import java.util.Arrays;
 import java.util.Dictionary;
 import java.util.Hashtable;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Stream;
 
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.Constants;
@@ -36,106 +33,16 @@ import org.osgi.service.cm.ManagedService;
  * 
  * @author <a href="mailto:dev@felix.apache.org">Felix Project Team</a>
  */
-public class ConfigurationDependencyImpl extends AbstractDependency<ConfigurationDependencyImpl> implements ManagedService {
+public class ConfigurationDependencyImpl extends AbstractDependency<ConfigurationDependencyImpl, Dictionary<String, Object>, ConfigurationEventImpl> implements ManagedService {
     private volatile Dictionary<String, Object> m_settings;
 	private volatile String m_pid;
 	private ServiceRegistration m_registration;
 	private volatile Class<?> m_configType;
 	private final AtomicBoolean m_updateInvokedCache = new AtomicBoolean();
-	private final Logger m_logger;
-	private final BundleContext m_context;
 	private volatile boolean m_needsInstance = true;
 
     public ConfigurationDependencyImpl() {
-        this(null, null);
-    }
-	
-    public ConfigurationDependencyImpl(BundleContext context, Logger logger) {
-        m_context = context;
-    	m_logger = logger;
         setRequired(true);
-        setCallback("updated");
-    }
-    
-	public ConfigurationDependencyImpl(ConfigurationDependencyImpl prototype) {
-	    super(prototype);
-	    m_context = prototype.m_context;
-	    m_pid = prototype.m_pid;
-	    m_logger = prototype.m_logger;
-        m_needsInstance = prototype.needsInstance();
-        m_configType = prototype.m_configType;
-	}
-	
-    @Override
-    public Class<?> getAutoConfigType() {
-        return null; // we don't support auto config mode.
-    }
-
-	@Override
-	public ConfigurationDependencyImpl createCopy() {
-	    return new ConfigurationDependencyImpl(this);
-	}
-
-	/**
-	 * Sets a callback method invoked on the instantiated component.
-	 */
-    public ConfigurationDependencyImpl setCallback(String callback) {
-        super.setCallbacks(callback, null);
-        return this;
-    }
-    
-    /**
-     * Sets a callback method on an external callback instance object.
-     * The component is not yet instantiated at the time the callback is invoked.
-     * We check if callback instance is null, in this case, the callback will be invoked on the instantiated component.
-     */
-    public ConfigurationDependencyImpl setCallback(Object instance, String callback) {
-        boolean needsInstantiatedComponent = (instance == null);
-    	return setCallback(instance, callback, needsInstantiatedComponent);
-    }
-
-    /**
-     * Sets a callback method on an external callback instance object.
-     * If needsInstance == true, the component is instantiated at the time the callback is invoked.
-     * We check if callback instance is null, in this case, the callback will be invoked on the instantiated component.
-     */
-    public ConfigurationDependencyImpl setCallback(Object instance, String callback, boolean needsInstance) {
-        super.setCallbacks(instance, callback, null);
-        m_needsInstance = needsInstance;
-        return this;
-    }
-        
-    /**
-     * Sets a type-safe callback method invoked on the instantiated component.
-     */
-    public ConfigurationDependencyImpl setCallback(String callback, Class<?> configType) {
-        Objects.nonNull(configType);
-        setCallback(callback);
-        m_configType = configType;
-        m_pid = (m_pid == null) ? configType.getName() : m_pid;
-        return this;
-    }
-
-    /**
-     * Sets a type-safe callback method on an external callback instance object.
-     * The component is not yet instantiated at the time the callback is invoked.
-     */
-    public ConfigurationDependencyImpl setCallback(Object instance, String callback, Class<?> configType) {
-        Objects.nonNull(configType);
-        setCallback(instance, callback);
-        m_configType = configType;
-        m_pid = (m_pid == null) ? configType.getName() : m_pid;
-        return this;
-    }
-    
-    /**
-     * Sets a type-safe callback method on an external callback instance object.
-     * If needsInstance == true, the component is instantiated at the time the callback is invoked.
-     */
-    public ConfigurationDependencyImpl setCallback(Object instance, String callback, Class<?> configType, boolean needsInstance) {
-        setCallback(instance, callback, needsInstance);
-        m_configType = configType;
-        return this;
     }
     
     /**
@@ -192,26 +99,6 @@ public class ConfigurationDependencyImpl extends AbstractDependency<Configuratio
         return "configuration";
     }
             
-    public ConfigurationDependencyImpl add(PropertyMetaData properties)
-    {
-        return this;
-    }
-
-    public ConfigurationDependencyImpl setDescription(String description)
-    {
-        return this;
-    }
-
-    public ConfigurationDependencyImpl setHeading(String heading)
-    {
-        return this;
-    }
-    
-    public ConfigurationDependencyImpl setLocalization(String path)
-    {
-        return this;
-    }
-    
 	@SuppressWarnings("unchecked")
 	@Override
 	public Dictionary<String, Object> getProperties() {
@@ -223,9 +110,13 @@ public class ConfigurationDependencyImpl extends AbstractDependency<Configuratio
 	    
     @SuppressWarnings({"unchecked", "rawtypes"})
     @Override
-    public void updated(final Dictionary settings) throws ConfigurationException {
+    public void updated(final Dictionary<String, ?> settings) throws ConfigurationException {
+        doUpdated((Dictionary) settings);
+    }
+
+    protected void doUpdated(final Dictionary<String, Object> settings) throws ConfigurationException {
     	m_updateInvokedCache.set(false);
-        Dictionary<String, Object> oldSettings = null;
+        Dictionary<String, Object> oldSettings;
         synchronized (this) {
             oldSettings = m_settings;
         }
@@ -269,7 +160,7 @@ public class ConfigurationDependencyImpl extends AbstractDependency<Configuratio
     }
 
     @Override
-    public void invokeCallback(EventType type, Event ... event) {
+    public void invokeCallback(EventType type, ConfigurationEventImpl event) {
         switch (type) {
         case ADDED:
             try {
@@ -290,41 +181,9 @@ public class ConfigurationDependencyImpl extends AbstractDependency<Configuratio
             break;
         }
     }
-    
-    /**
-     * Creates the various signatures and arguments combinations used for the configuration-type style callbacks.
-     * 
-     * @param service the service for which the callback should be applied;
-     * @param configType the configuration type to use (can be <code>null</code>);
-     * @param settings the actual configuration settings.
-     */
-    static CallbackTypeDef createCallbackType(Logger logger, ComponentImpl service, Class<?> configType, Dictionary<?, ?> settings) {
-        Class<?>[][] sigs = new Class[][] { { Dictionary.class }, { ComponentImpl.class, Dictionary.class }, {} };
-        Object[][] args = new Object[][] { { settings }, { service, settings }, {} };
 
-        if (configType != null) {
-            try {
-                // if the configuration is null, it means we are losing it, and since we pass a null dictionary for other callback
-                // (that accepts a Dictionary), then we should have the same behavior and also pass a null conf proxy object when
-                // the configuration is lost.
-                Object configurable = settings != null ? Configurable.create(configType, settings) : null;
-                
-                logger.debug("Using configuration-type injecting using %s as possible configType.", configType.getSimpleName());
-
-                sigs = new Class[][] { { Dictionary.class }, { ComponentImpl.class, Dictionary.class }, { ComponentImpl.class, configType }, { configType }, {} };
-                args = new Object[][] { { settings }, { service, settings }, { service, configurable }, { configurable }, {} };
-            }
-            catch (Exception e) {
-                // This is not something we can recover from, use the defaults above...
-                logger.warn("Failed to create configurable for configuration type %s!", e, configType);
-            }
-        }
-
-        return new CallbackTypeDef(sigs, args);
-    }
-
-    // Called from the configuration component internal queue. 
-    private void invokeUpdated(Dictionary<?, ?> settings) throws Exception {
+    // Called from the configuration component internal queue.
+    private void invokeUpdated(Dictionary<String, ?> settings) throws Exception {
         if (m_updateInvokedCache.compareAndSet(false, true)) {
             
             // FELIX-5192: we have to handle the following race condition: one thread stops a component (removes it from a DM object);
@@ -335,34 +194,10 @@ public class ConfigurationDependencyImpl extends AbstractDependency<Configuratio
                 return;
             }
             
-            // FELIX-5155: if component impl is an internal DM adapter, we must not invoke the callback on it
-            // because in case there is an external callback instance specified for the configuration callback,
-            // then we don't want to invoke it now. The external callback instance will be invoked
-            // on the other actual configuration dependency copied into the actual component instance created by the
-            // adapter.
-            
-            Object[] instances = super.getInstances(); // never null, either the callback instance or the component instances
-            
-            CallbackTypeDef callbackInfo = createCallbackType(m_logger, m_component, m_configType, settings);
-            boolean callbackFound = false;
-            for (int i = 0; i < instances.length; i++) {
-                try {
-                    InvocationUtil.invokeCallbackMethod(instances[i], m_add, callbackInfo.m_sigs, callbackInfo.m_args);
-                    callbackFound |= true;
-                }
-                catch (NoSuchMethodException e) {
-                    // if the method does not exist, ignore it
-                }
-            }
-            
-            if (! callbackFound) {
-                String[] instanceClasses = Stream.of(instances).map(c -> c.getClass().getName()).toArray(String[]::new);
-                m_logger.log(Logger.LOG_ERROR, "\"" + m_add + "\" configuration callback not found in any of the component classes: " + Arrays.toString(instanceClasses));
-            }
         }
     }
     
     private void logConfigurationException(Throwable err) {
-        m_logger.log(Logger.LOG_ERROR, "Got exception while handling configuration update for pid " + m_pid, err);
+        m_component.getLogger().log(Logger.LOG_ERROR, "Got exception while handling configuration update for pid " + m_pid, err);
     }
 }

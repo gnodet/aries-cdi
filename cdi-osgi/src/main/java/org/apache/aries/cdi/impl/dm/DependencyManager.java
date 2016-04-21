@@ -77,6 +77,10 @@ public class DependencyManager {
         }
     }
 
+    Logger getLogger() {
+        return m_logger;
+    }
+
     /**
      * Returns the list of currently created dependency managers.
      * @return the list of currently created dependency managers
@@ -139,7 +143,7 @@ public class DependencyManager {
      * @return the new component
      */
     public ComponentImpl createComponent() {
-        return new ComponentImpl(m_context, this, m_logger);
+        return new ComponentImpl(m_context, this);
     }
 
     /**
@@ -147,8 +151,8 @@ public class DependencyManager {
      *
      * @return the service dependency
      */
-    public ServiceDependencyImpl createServiceDependency() {
-        return new ServiceDependencyImpl();
+    public <T> ServiceDependencyImpl<T> createServiceDependency() {
+        return new ServiceDependencyImpl<>();
     }
 
     /**
@@ -157,7 +161,7 @@ public class DependencyManager {
      * @return the configuration dependency
      */
     public ConfigurationDependencyImpl createConfigurationDependency() {
-        return new ConfigurationDependencyImpl(m_context, m_logger);
+        return new ConfigurationDependencyImpl();
     }
 
     /**
@@ -168,6 +172,10 @@ public class DependencyManager {
      */
     public TemporalServiceDependencyImpl createTemporalServiceDependency(long timeout) {
         return new TemporalServiceDependencyImpl(m_context, timeout);
+    }
+
+    public ComponentDependencyImpl createComponentDependency() {
+        return new ComponentDependencyImpl();
     }
 
     /**
@@ -193,7 +201,4 @@ public class DependencyManager {
         return context;
     }
 
-    public ComponentDependencyImpl createComponentDependency() {
-        return new ComponentDependencyImpl();
-    }
 }

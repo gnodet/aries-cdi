@@ -46,7 +46,7 @@ import org.osgi.framework.ServiceReference;
  * @ThreadSafe
  * @version $Revision: 5874 $
  */
-public interface ServiceTrackerCustomizer {
+public interface ServiceTrackerCustomizer<S, T> {
 	/**
 	 * A service is being added to the <code>ServiceTracker</code>.
 	 * 
@@ -65,10 +65,10 @@ public interface ServiceTrackerCustomizer {
 	 *         service or <code>null</code> if the specified referenced service
 	 *         should not be tracked.
 	 */
-	public Object addingService(ServiceReference reference);
+	T addingService(ServiceReference<S> reference);
 
 	/** marrs: A service has been added to the ServiceTracker. */
-	public void addedService(ServiceReference reference, Object service);
+	void addedService(ServiceReference<S> reference, T service);
 
 	/**
 	 * A service tracked by the <code>ServiceTracker</code> has been modified.
@@ -80,27 +80,8 @@ public interface ServiceTrackerCustomizer {
 	 * @param reference The reference to the service that has been modified.
 	 * @param service The service object for the specified referenced service.
 	 */
-	public void modifiedService(ServiceReference reference, Object service);
+	void modifiedService(ServiceReference<S> reference, T service);
 	
-	/**
-	 * A service tracked by the <code>ServiceTracker</code> has an aspect service 
-	 * added or removed for a tracked service.
-	 * 
-	 * <p>
-	 * This method is called when an aspect service has been either added or removed 
-	 * for a tracked service. This method will only be called when there's a new 
-	 * highest ranked service as result of adding or removal of the aspect service.
-	 * In this case the previously highest ranked service is 'swapped' for the new
-	 * highest ranked service ensuring the client always gets the highest ranked
-	 * aspect. 
-	 * 
-	 * @param reference The reference for the old highest ranked service.
-	 * @param service The service object for the old highest ranked service.
-	 * @param newReference The reference to the new highest ranked service.
-	 * @param newService The service object for the new highest ranked service.
-	 */
-	public void swappedService(ServiceReference reference, Object service, ServiceReference newReference, Object newService);
-
 	/**
 	 * A service tracked by the <code>ServiceTracker</code> has been removed.
 	 * 
@@ -111,5 +92,5 @@ public interface ServiceTrackerCustomizer {
 	 * @param reference The reference to the service that has been removed.
 	 * @param service The service object for the specified referenced service.
 	 */
-	public void removedService(ServiceReference reference, Object service);
+	void removedService(ServiceReference<S> reference, T service);
 }

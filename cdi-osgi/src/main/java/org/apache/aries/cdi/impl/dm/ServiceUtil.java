@@ -33,10 +33,6 @@ import org.osgi.framework.ServiceReference;
  * @author <a href="mailto:dev@felix.apache.org">Felix Project Team</a>
  */
 public class ServiceUtil {
-    /**
-     * Useful when needing to provide empty service properties.
-     */
-    public final static Dictionary<String, Object> EMPTY_PROPERTIES = new Hashtable<>();
 
     /**
      * Returns the service ranking of a service, based on its service reference. If
@@ -46,8 +42,8 @@ public class ServiceUtil {
      * @param ref the service reference to determine the ranking for
      * @return the ranking
      */
-    public static int getRanking(ServiceReference ref) {
-        return getRankingAsInteger(ref).intValue();
+    public static int getRanking(ServiceReference<?> ref) {
+        return getRankingAsInteger(ref);
     }
     
     /**
@@ -58,12 +54,12 @@ public class ServiceUtil {
      * @param ref the service reference to determine the ranking for
      * @return the ranking
      */
-    public static Integer getRankingAsInteger(ServiceReference ref) {
+    public static Integer getRankingAsInteger(ServiceReference <?>ref) {
         Integer rank = (Integer) ref.getProperty(Constants.SERVICE_RANKING);
         if (rank != null) {
             return rank;
         }
-        return new Integer(0);
+        return 0;
     }
     
     /**
@@ -91,10 +87,6 @@ public class ServiceUtil {
     }
     
     public static Long getServiceIdObject(ServiceReference<?> ref) {
-        Long aid = (Long) ref.getProperty(DependencyManager.ASPECT);
-        if (aid != null) {
-            return aid;
-        }
         Long sid = (Long) ref.getProperty(Constants.SERVICE_ID);
         if (sid != null) {
             return sid;
@@ -102,18 +94,6 @@ public class ServiceUtil {
         throw new IllegalArgumentException("Invalid service reference, no service ID found");
     }
 
-    /**
-     * Determines if the service is an aspect as defined by the dependency manager.
-     * Aspects are defined by a property and this method will check for its presence.
-     * 
-     * @param ref the service reference
-     * @return <code>true</code> if it's an aspect, <code>false</code> otherwise
-     */
-    public static boolean isAspect(ServiceReference ref) {
-        Long aid = (Long) ref.getProperty(DependencyManager.ASPECT);
-        return (aid != null);
-    }
-    
     /**
      * Converts a service reference to a string, listing both the bundle it was
      * registered from and all properties.
@@ -126,7 +106,7 @@ public class ServiceUtil {
             return "ServiceReference[null]";
         }
         else {
-            StringBuffer buf = new StringBuffer();
+            StringBuilder buf = new StringBuilder();
             Bundle bundle = ref.getBundle();
             if (bundle != null) {
                 buf.append("ServiceReference[");
@@ -164,11 +144,11 @@ public class ServiceUtil {
                     String[] valArray = (String[]) val;
                     StringBuilder valBuf = new StringBuilder();
                     valBuf.append('{');
-                    for (int j = 0; j < valArray.length; j++) {
+                    for (String aValArray : valArray) {
                         if (valBuf.length() > 1) {
                             valBuf.append(',');
                         }
-                        valBuf.append(valArray[j].toString());
+                        valBuf.append(aValArray);
                     }
                     valBuf.append('}');
                     buf.append(valBuf);
@@ -232,7 +212,7 @@ public class ServiceUtil {
             
             private synchronized Dictionary<String, Object> getWrapper() {
                 if (m_wrapper == null) {
-                    m_wrapper = new Hashtable<String, Object>();
+                    m_wrapper = new Hashtable<>();
                     String[] keys = ref.getPropertyKeys();
                     for (String key : keys) {
                         m_wrapper.put(key, ref.getProperty(key));

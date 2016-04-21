@@ -37,10 +37,6 @@ public enum EventType {
     /**
      * A Dependency service becomes unavailable.
      */
-    REMOVED,
-    
-    /**
-     * A Dependency service has been swapped by another one.
-     */
-    SWAPPED
+    REMOVED
+
 }

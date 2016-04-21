@@ -27,28 +27,25 @@ import java.util.Hashtable;
  * 
  * @author <a href="mailto:dev@felix.apache.org">Felix Project Team</a>
  */
-public class Event implements Comparable<Event> {
-    protected final static Dictionary<Object, Object> EMPTY_PROPERTIES = new Hashtable<>();
-    private final Object m_event;    // the actual event object (a Service, a Bundle, a Configuration, etc ...)
+public class Event<T> implements Comparable<Event<T>> {
+    private final T m_event;    // the actual event object (a Service, a Bundle, a Configuration, etc ...)
     
-    public Event(Object event) {
+    public Event(T event) {
         m_event = event;
     }
     
     /**
      * Returns the actual event object wrapped by this event (a Service Dependency, a Bundle for Bundle Dependency, etc...).
      */
-    @SuppressWarnings("unchecked")
-    public <T> T getEvent() {
-        return (T) m_event;
+    public T getEvent() {
+        return m_event;
     }
     
     /**
      * Returns the properties of the actual event object wrapped by this event (Service Dependency properties, ...).
      */
-    @SuppressWarnings("unchecked")
-    public <K,V> Dictionary<K,V> getProperties() {
-        return (Dictionary<K,V>) EMPTY_PROPERTIES;
+    public Dictionary<String, Object> getProperties() {
+        return EmptyDictionary.emptyDictionary();
     }
 
     @Override
@@ -67,7 +64,7 @@ public class Event implements Comparable<Event> {
     }
     
     @Override
-    public int compareTo(Event o) {
+    public int compareTo(Event<T> o) {
         return 0;
     }
     
