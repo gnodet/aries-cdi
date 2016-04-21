@@ -26,11 +26,10 @@ import org.apache.aries.cdi.api.Greedy;
 import org.apache.aries.cdi.api.Immediate;
 import org.apache.aries.cdi.api.Reference;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.osgi.framework.ServiceRegistration;
 
-public class MandatoryGreedyReferenceTest extends AbstractTest {
+public class MandatoryNonGreedyReferenceTest extends AbstractTest {
 
     @Test
     public void test() throws Exception {
@@ -44,10 +43,10 @@ public class MandatoryGreedyReferenceTest extends AbstractTest {
         Assert.assertEquals(1, Hello.created.get());
         Assert.assertEquals(0, Hello.destroyed.get());
 
-        ServiceRegistration<Service> registration2 = register(Service.class, () -> "Hello world !!", 1);
+        ServiceRegistration<Service> registration2 = register(Service.class, () -> "Hello world !!", -1);
 
-        Assert.assertEquals(2, Hello.created.get());
-        Assert.assertEquals(1, Hello.destroyed.get());
+        Assert.assertEquals(1, Hello.created.get());
+        Assert.assertEquals(0, Hello.destroyed.get());
 
         registration1.unregister();
 
@@ -73,7 +72,7 @@ public class MandatoryGreedyReferenceTest extends AbstractTest {
         static final AtomicInteger destroyed = new AtomicInteger();
 
         @Inject
-        @Greedy @Reference
+        @Reference
         Service service;
 
         @PostConstruct

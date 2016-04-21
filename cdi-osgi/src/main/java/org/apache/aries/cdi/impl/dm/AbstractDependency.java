@@ -54,6 +54,11 @@ public abstract class AbstractDependency<D extends AbstractDependency, S, E exte
     protected volatile boolean m_required;
 
     /**
+     * Is this dependency greedy (false by default) ?
+     */
+    protected volatile boolean m_greedy;
+
+    /**
      * Has this Dependency been started by the Component implementation ? .
      */
     protected volatile boolean m_isStarted;
@@ -85,6 +90,10 @@ public abstract class AbstractDependency<D extends AbstractDependency, S, E exte
 
     public boolean isOptional() {
         return !m_required;
+    }
+
+    public boolean isGreedy() {
+        return m_greedy;
     }
 
     /**
@@ -178,7 +187,7 @@ public abstract class AbstractDependency<D extends AbstractDependency, S, E exte
      * Get the highest ranked available dependency service, or null.
      */
     public S getService() {
-        E event = m_component.getDependencyEvent(this);
+        E event = m_component.getBoundDependencyEvent(this);
         if (event == null) {
             return getDefaultService(true);
         }
@@ -276,7 +285,15 @@ public abstract class AbstractDependency<D extends AbstractDependency, S, E exte
 
     @SuppressWarnings("unchecked")
     public D setRequired(boolean required) {
+        ensureNotActive();
         m_required = required;
+        return (D) this;
+    }
+
+    @SuppressWarnings("unchecked")
+    public D setGreedy(boolean greedy) {
+        ensureNotActive();
+        m_greedy = greedy;
         return (D) this;
     }
 

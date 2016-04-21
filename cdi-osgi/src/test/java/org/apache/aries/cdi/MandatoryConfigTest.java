@@ -34,7 +34,7 @@ import org.osgi.service.cm.ConfigurationAdmin;
 
 public class MandatoryConfigTest extends AbstractTest {
 
-    @Test(timeout = 1000)
+    @Test(timeout = 10000)
     public void test() throws Exception {
         BundleContextHolder.setBundleContext(getBundleContext());
         startConfigAdmin();

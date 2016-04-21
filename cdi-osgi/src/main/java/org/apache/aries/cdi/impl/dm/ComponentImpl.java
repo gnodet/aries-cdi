@@ -35,6 +35,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
 import org.osgi.framework.Bundle;
@@ -149,7 +150,8 @@ public class ComponentImpl {
      * ranked service.
      */
     private final Map<AbstractDependency, ConcurrentSkipListSet<Event>> m_dependencyEvents = new HashMap<>();
-    
+    private final Map<AbstractDependency, AtomicReference<Event>> m_dependencySelectedEvent = new HashMap<>();
+
     /**
      * Flag used to check if this component has been added in a DependencyManager object.
      */
@@ -323,13 +325,32 @@ public class ComponentImpl {
     public <D extends AbstractDependency, S, E extends Event<S>>
     E getDependencyEvent(AbstractDependency<D, S, E> dc) {
         SortedSet<E> events = getDependencyEvents(dc);
-        return events.size() > 0 ? events.last() : null;
+        return events.isEmpty() ? null : events.last();
     }
 
     @SuppressWarnings("unchecked")
     public <D extends AbstractDependency, S, E extends Event<S>>
     SortedSet<E> getDependencyEvents(AbstractDependency<D, S, E> dc) {
         return (SortedSet) m_dependencyEvents.get(dc);
+    }
+
+    public <D extends AbstractDependency, S, E extends Event<S>>
+    AtomicReference<E> getBoundReference(AbstractDependency<D, S, E> dc) {
+        @SuppressWarnings("unchecked")
+        AtomicReference<E> ref = (AtomicReference) m_dependencySelectedEvent.computeIfAbsent(dc, d -> new AtomicReference<>());
+        return ref;
+    }
+
+    public <D extends AbstractDependency, S, E extends Event<S>>
+    E getBoundDependencyEvent(AbstractDependency<D, S, E> dc) {
+        AtomicReference<E> ref = getBoundReference(dc);
+        E bound = ref.get();
+        if (bound == null) {
+            SortedSet<E> events = getDependencyEvents(dc);
+            bound = events.isEmpty() ? null : events.last();
+            ref.set(bound);
+        }
+        return bound;
     }
 
     public boolean isAvailable() {
@@ -667,11 +688,11 @@ public class ComponentImpl {
         }
         m_logger.debug("handleAdded %s", e);
         
-        Set<E> dependencyEvents = getDependencyEvents(dc);
-        dependencyEvents.add(e);        
+        SortedSet<E> dependencyEvents = getDependencyEvents(dc);
+        dependencyEvents.add(e);
         dc.setAvailable(true);
-                  
-        // In the following switch block, we sometimes only recalculate state changes 
+
+        // In the following switch block, we sometimes only recalculate state changes
         // if the dependency is fully started. If the dependency is not started,
         // it means it is actually starting (the service tracker is executing the open method). 
         // And in this case, depending on the state, we don't recalculate state changes now. 
@@ -702,7 +723,9 @@ public class ComponentImpl {
             break;
         case TRACKING_OPTIONAL:
             invokeCallbackSafe(dc, EventType.ADDED, e);
-            updateInstance(dc, e, false, true);
+            if (dc.isGreedy() && dependencyEvents.last() == e) {
+                updateInstance(dc, e, false, true);
+            }
             break;
         default:
         }
@@ -746,7 +769,7 @@ public class ComponentImpl {
             return;
         }
         // Check if the dependency is still available.
-        Set<E> dependencyEvents = getDependencyEvents(dc);
+        SortedSet<E> dependencyEvents = getDependencyEvents(dc);
         int size = dependencyEvents.size();
         if (dependencyEvents.contains(e)) {
             size--; // the dependency is currently registered and is about to be removed.
@@ -762,7 +785,13 @@ public class ComponentImpl {
         }
         
         // Now, really remove the dependency event.
-        dependencyEvents.remove(e);    
+        AtomicReference<E> ref = getBoundReference(dc);
+        boolean bound = e.equals(ref.get());
+        if (bound) {
+            ref.set(null);
+        }
+
+        dependencyEvents.remove(e);
         
         // Depending on the state, we possible have to invoke the callbacks and update the component instance.        
         switch (m_state) {
@@ -776,7 +805,9 @@ public class ComponentImpl {
             break;
         case TRACKING_OPTIONAL:
             invokeCallbackSafe(dc, EventType.REMOVED, e);
-            updateInstance(dc, e, false, false);
+            if (bound) {
+                updateInstance(dc, e, false, false);
+            }
             break;
         default:
         }
@@ -817,6 +848,7 @@ public class ComponentImpl {
         if (dc.isPropagated() && m_registration != null) {
             m_registration.setProperties(calculateServiceProperties());
         }
+        m_dependencySelectedEvent.computeIfAbsent(dc, d -> new AtomicReference<>()).set(event);
     }
     
     private void startDependencies(List<AbstractDependency<?, ?, ?>> dependencies) {

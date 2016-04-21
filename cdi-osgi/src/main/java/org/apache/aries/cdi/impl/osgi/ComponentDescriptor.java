@@ -31,6 +31,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 import org.apache.aries.cdi.api.Config;
+import org.apache.aries.cdi.api.Greedy;
 import org.apache.aries.cdi.api.Immediate;
 import org.apache.aries.cdi.api.Optional;
 import org.apache.aries.cdi.impl.dm.AbstractDependency;
@@ -133,8 +134,10 @@ public class ComponentDescriptor<C> {
                 clazz = (Class) type;
             }
             boolean optional = injectionPoint.getAnnotated().isAnnotationPresent(Optional.class);
+            boolean greedy = injectionPoint.getAnnotated().isAnnotationPresent(Greedy.class);
             sd = getRegistry().getDm().createServiceDependency()
                     .setRequired(!optional)
+                    .setGreedy(greedy)
                     .setService(clazz);
             component.add(sd);
         }

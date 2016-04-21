@@ -98,7 +98,7 @@ public class ServiceEventImpl<S> extends Event<S> {
 	}
 
     @Override
-    public int compareTo(Event b) {
+    public int compareTo(Event<S> b) {
     	return getReference().compareTo(((ServiceEventImpl) b).getReference());
     }
         
