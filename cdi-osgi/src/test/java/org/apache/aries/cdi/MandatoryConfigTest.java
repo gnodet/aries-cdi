@@ -19,8 +19,6 @@ package org.apache.aries.cdi;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import javax.inject.Inject;
-import java.util.Dictionary;
-import java.util.Hashtable;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -30,7 +28,6 @@ import org.apache.aries.cdi.api.Immediate;
 import org.apache.aries.cdi.impl.osgi.BundleContextHolder;
 import org.junit.Assert;
 import org.junit.Test;
-import org.osgi.service.cm.ConfigurationAdmin;
 
 public class MandatoryConfigTest extends AbstractTest {
 
@@ -44,10 +41,7 @@ public class MandatoryConfigTest extends AbstractTest {
         Assert.assertEquals(0, Hello.destroyed.get());
 
         // create configuration
-        ConfigurationAdmin cm = getService(ConfigurationAdmin.class);
-        Dictionary<String, Object> config = new Hashtable<>();
-        config.put("host", "localhost");
-        cm.getConfiguration(MyConfig.class.getName()).update(config);
+        getConfiguration(MyConfig.class).update(dictionary("host", "localhost"));
 
         synchronized (Hello.instance) {
             Hello.instance.wait();
@@ -59,7 +53,7 @@ public class MandatoryConfigTest extends AbstractTest {
         Assert.assertEquals(0, Hello.destroyed.get());
 
         // delete configuration
-        cm.getConfiguration(MyConfig.class.getName()).delete();
+        getConfiguration(MyConfig.class).delete();
 
         synchronized (Hello.instance) {
             Hello.instance.wait();

@@ -17,6 +17,9 @@
 package org.apache.aries.cdi;
 
 import java.io.File;
+import java.io.IOException;
+import java.lang.annotation.Annotation;
+import java.util.Dictionary;
 import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.Map;
@@ -37,6 +40,8 @@ import org.osgi.framework.ServiceReference;
 import org.osgi.framework.ServiceRegistration;
 import org.osgi.framework.launch.Framework;
 import org.osgi.framework.launch.FrameworkFactory;
+import org.osgi.service.cm.Configuration;
+import org.osgi.service.cm.ConfigurationAdmin;
 
 public abstract class AbstractTest {
 
@@ -93,9 +98,8 @@ public abstract class AbstractTest {
     }
 
     protected <T> ServiceRegistration<T> register(Class<T> clazz, T t, int ranking) {
-        Hashtable<String, Object> props = new Hashtable<>();
-        props.put(Constants.SERVICE_RANKING, ranking);
-        return getBundleContext().registerService(clazz, t, props);
+        return getBundleContext().registerService(clazz, t,
+                dictionary(Constants.SERVICE_RANKING, ranking));
     }
 
     protected WeldContainer createCdi(Class... classes) {
@@ -106,4 +110,15 @@ public abstract class AbstractTest {
                 .initialize();
         return weld;
     }
+
+    protected Configuration getConfiguration(Class<? extends Annotation> cfg) throws IOException {
+        return getService(ConfigurationAdmin.class).getConfiguration(cfg.getName());
+    }
+
+    protected Dictionary<String, Object> dictionary(String key, Object val) {
+        Dictionary<String, Object> dictionary = new Hashtable<>();
+        dictionary.put(key, val);
+        return dictionary;
+    }
+
 }
