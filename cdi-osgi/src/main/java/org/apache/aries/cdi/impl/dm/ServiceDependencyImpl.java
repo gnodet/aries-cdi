@@ -204,9 +204,6 @@ public class ServiceDependencyImpl<S> extends AbstractDependency<ServiceDependen
 
 	@Override
 	public void addedService(ServiceReference<S> reference, S service) {
-		if (m_debug) {
-			System.out.println(m_debugKey + " addedService: ref=" + reference + ", service=" + service);
-		}
         m_component.handleEvent(this, EventType.ADDED,
             new ServiceEventImpl<>(m_component.getBundle(), m_component.getBundleContext(), reference, service));
 	}

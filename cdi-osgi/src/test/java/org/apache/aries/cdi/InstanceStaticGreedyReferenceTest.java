@@ -18,18 +18,24 @@ package org.apache.aries.cdi;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
+import javax.enterprise.inject.Instance;
 import javax.inject.Inject;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.aries.cdi.api.Component;
 import org.apache.aries.cdi.api.Greedy;
 import org.apache.aries.cdi.api.Immediate;
 import org.apache.aries.cdi.api.Reference;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.osgi.framework.ServiceRegistration;
 
-public class MandatoryGreedyReferenceTest extends AbstractTest {
+public class InstanceStaticGreedyReferenceTest extends AbstractTest {
 
     @Test
     public void test() throws Exception {
@@ -37,26 +43,31 @@ public class MandatoryGreedyReferenceTest extends AbstractTest {
 
         Assert.assertEquals(0, Hello.created.get());
         Assert.assertEquals(0, Hello.destroyed.get());
+        Assert.assertNull(Hello.instance.get());
 
-        ServiceRegistration<Service> registration1 = register(Service.class, () -> "Hello world !!");
+        ServiceRegistration<Service> registration1 = register(Service.class, () -> "Hello 1 !!");
 
         Assert.assertEquals(1, Hello.created.get());
         Assert.assertEquals(0, Hello.destroyed.get());
+        Assert.assertEquals("Hello 1 !!", Hello.instance.get().sayHelloWorld());
 
-        ServiceRegistration<Service> registration2 = register(Service.class, () -> "Hello world !!", 1);
+        ServiceRegistration<Service> registration2 = register(Service.class, () -> "Hello 2 !!");
 
         Assert.assertEquals(2, Hello.created.get());
         Assert.assertEquals(1, Hello.destroyed.get());
+        Assert.assertEquals("Hello 1 !!\nHello 2 !!", Hello.instance.get().sayHelloWorld());
 
         registration1.unregister();
 
-        Assert.assertEquals(2, Hello.created.get());
-        Assert.assertEquals(1, Hello.destroyed.get());
+        Assert.assertEquals(3, Hello.created.get());
+        Assert.assertEquals(2, Hello.destroyed.get());
+        Assert.assertEquals("Hello 2 !!", Hello.instance.get().sayHelloWorld());
 
         registration2.unregister();
 
-        Assert.assertEquals(2, Hello.created.get());
-        Assert.assertEquals(2, Hello.destroyed.get());
+        Assert.assertEquals(3, Hello.created.get());
+        Assert.assertEquals(3, Hello.destroyed.get());
+        Assert.assertNull(Hello.instance.get());
     }
 
     public interface Service {
@@ -70,25 +81,31 @@ public class MandatoryGreedyReferenceTest extends AbstractTest {
 
         static final AtomicInteger created = new AtomicInteger();
         static final AtomicInteger destroyed = new AtomicInteger();
+        static final AtomicReference<Hello> instance = new AtomicReference<>();
 
         @Inject
         @Greedy @Reference
-        Service service;
+        Instance<Service> service;
 
         @PostConstruct
         public void init() {
             created.incrementAndGet();
+            instance.set(this);
             System.err.println("Creating Hello instance");
         }
 
         @PreDestroy
         public void destroy() {
-            destroyed.incrementAndGet();
             System.err.println("Destroying Hello instance");
+            destroyed.incrementAndGet();
+            instance.set(null);
         }
 
         public String sayHelloWorld() {
-            return service.hello();
+            List<String> strings = new ArrayList<>();
+            service.forEach(s -> strings.add(s.hello()));
+            Collections.sort(strings); // TODO: ordering ?
+            return String.join("\n", strings);
         }
     }
 

@@ -17,20 +17,31 @@
 package org.apache.aries.cdi.impl.osgi;
 
 import javax.enterprise.context.spi.CreationalContext;
+import javax.enterprise.inject.AmbiguousResolutionException;
+import javax.enterprise.inject.Instance;
+import javax.enterprise.inject.UnsatisfiedResolutionException;
 import javax.enterprise.inject.spi.AfterBeanDiscovery;
+import javax.enterprise.inject.spi.AnnotatedField;
 import javax.enterprise.inject.spi.Bean;
 import javax.enterprise.inject.spi.InjectionPoint;
+import javax.enterprise.util.TypeLiteral;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.util.AbstractCollection;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.function.Supplier;
 
 import org.apache.aries.cdi.api.Config;
+import org.apache.aries.cdi.api.Dynamic;
 import org.apache.aries.cdi.api.Greedy;
 import org.apache.aries.cdi.api.Immediate;
 import org.apache.aries.cdi.api.Optional;
@@ -41,6 +52,8 @@ import org.apache.aries.cdi.impl.dm.Configurable;
 import org.apache.aries.cdi.impl.dm.ConfigurationDependencyImpl;
 import org.apache.aries.cdi.impl.dm.Event;
 import org.apache.aries.cdi.impl.dm.ServiceDependencyImpl;
+import org.apache.aries.cdi.impl.dm.ServiceEventImpl;
+import org.osgi.framework.ServiceReference;
 
 public class ComponentDescriptor<C> {
 
@@ -114,6 +127,24 @@ public class ComponentDescriptor<C> {
                 ']';
     }
 
+    public <T> void inject(T instance, CreationalContext<T> ctx, InjectionPoint injectionPoint) {
+        for (Dependency dependency : dependencies) {
+            if (dependency.getClass() == ReferenceDependency.class) {
+                ReferenceDependency ref = (ReferenceDependency) dependency;
+                if (ref.injectionPoint == injectionPoint && ref.isInstance) {
+                    Field field = ((AnnotatedField) injectionPoint.getAnnotated()).getJavaMember();
+                    field.setAccessible(true);
+                    try {
+                        field.set(instance, ref.getService());
+                    }
+                    catch (IllegalAccessException exc) {
+                        throw new RuntimeException(exc);
+                    }
+                }
+            }
+        }
+    }
+
     public interface Dependency {
 
         void preStart(AfterBeanDiscovery event);
@@ -123,21 +154,37 @@ public class ComponentDescriptor<C> {
 
         protected final InjectionPoint injectionPoint;
         protected final Class<?> clazz;
-        protected final ServiceDependencyImpl<?> sd;
+        protected final ServiceDependencyImpl<Object> sd;
+        protected final boolean isInstance;
 
         public ReferenceDependency(InjectionPoint injectionPoint) {
             this.injectionPoint = injectionPoint;
             Type type = injectionPoint.getType();
             if (type instanceof ParameterizedType) {
-                clazz = (Class) ((ParameterizedType) type).getRawType();
+                Type raw = ((ParameterizedType) type).getRawType();
+                if (raw == Instance.class) {
+                    isInstance = true;
+                    clazz = (Class) ((ParameterizedType) type).getActualTypeArguments()[0];
+                } else {
+                    isInstance = false;
+                    clazz = (Class) ((ParameterizedType) type).getRawType();
+                }
             } else {
+                if (type == Instance.class) {
+                    throw new IllegalArgumentException();
+                }
+                isInstance = false;
                 clazz = (Class) type;
             }
             boolean optional = injectionPoint.getAnnotated().isAnnotationPresent(Optional.class);
             boolean greedy = injectionPoint.getAnnotated().isAnnotationPresent(Greedy.class);
+            boolean dynamic = injectionPoint.getAnnotated().isAnnotationPresent(Dynamic.class);
+            boolean multiple = isInstance;
             sd = getRegistry().getDm().createServiceDependency()
                     .setRequired(!optional)
                     .setGreedy(greedy)
+                    .setDynamic(dynamic)
+                    .setMultiple(multiple)
                     .setService(clazz);
             component.add(sd);
         }
@@ -148,6 +195,34 @@ public class ComponentDescriptor<C> {
         }
 
         protected Object getService() {
+            if (isInstance) {
+                return new ReferenceInstance<Object>() {
+                    @Override
+                    protected Collection<ServiceReference<Object>> getServiceReferences() {
+                        SortedSet<? extends ServiceEventImpl<Object>> col = component.getDependencyEvents(sd);
+                        return new AbstractCollection<ServiceReference<Object>>() {
+                            @Override
+                            public Iterator<ServiceReference<Object>> iterator() {
+                                Iterator<? extends ServiceEventImpl<Object>> it = col.iterator();
+                                return new Iterator<ServiceReference<Object>>() {
+                                    @Override
+                                    public boolean hasNext() {
+                                        return it.hasNext();
+                                    }
+                                    @Override
+                                    public ServiceReference<Object> next() {
+                                        return it.next().getReference();
+                                    }
+                                };
+                            }
+                            @Override
+                            public int size() {
+                                return col.size();
+                            }
+                        };
+                    }
+                };
+            }
             return sd.getService();
         }
     }
@@ -191,10 +266,12 @@ public class ComponentDescriptor<C> {
             Config config = injectionPoint.getAnnotated().getAnnotation(Config.class);
             String pid = config.pid().isEmpty() ? clazz.getName() : config.pid();
             boolean optional = injectionPoint.getAnnotated().isAnnotationPresent(Optional.class);
+            boolean dynamic = injectionPoint.getAnnotated().isAnnotationPresent(Dynamic.class);
 
-            cd = getRegistry().getDm().createConfigurationDependency();
-            cd.setPid(pid);
-            cd.setRequired(!optional);
+            cd = getRegistry().getDm().createConfigurationDependency()
+                    .setPid(pid)
+                    .setRequired(!optional)
+                    .setDynamic(dynamic);
             component.add(cd);
         }
 
@@ -263,6 +340,69 @@ public class ComponentDescriptor<C> {
         @Override
         public void destroy(T instance, CreationalContext<T> creationalContext) {
         }
+    }
+
+    abstract class ReferenceInstance<T> implements Instance<T> {
+
+        @Override
+        public Instance<T> select(Annotation... qualifiers) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public <U extends T> Instance<U> select(Class<U> subtype, Annotation... qualifiers) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public <U extends T> Instance<U> select(TypeLiteral<U> subtype, Annotation... qualifiers) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean isUnsatisfied() {
+            return getServiceReferences().isEmpty();
+        }
+
+        @Override
+        public boolean isAmbiguous() {
+            return getServiceReferences().size() > 0;
+        }
+
+        @Override
+        public void destroy(T instance) {
+
+        }
+
+        @Override
+        public Iterator<T> iterator() {
+            Iterator<ServiceReference<T>> iterator = getServiceReferences().iterator();
+            return new Iterator<T>() {
+                @Override
+                public boolean hasNext() {
+                    return iterator.hasNext();
+                }
+
+                @Override
+                public T next() {
+                    ServiceReference<T> ref = iterator.next();
+                    return getRegistry().getBundleContext().getService(ref);
+                }
+            };
+        }
+
+        @Override
+        public T get() {
+            if (isUnsatisfied()) {
+                throw new UnsatisfiedResolutionException();
+            }
+            if (isAmbiguous()) {
+                throw new AmbiguousResolutionException();
+            }
+            return iterator().next();
+        }
+
+        protected abstract Collection<ServiceReference<T>> getServiceReferences();
     }
 
 }

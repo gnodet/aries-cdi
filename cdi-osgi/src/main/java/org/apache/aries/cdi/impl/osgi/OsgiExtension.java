@@ -17,18 +17,22 @@
 package org.apache.aries.cdi.impl.osgi;
 
 import javax.enterprise.context.ApplicationScoped;
+import javax.enterprise.context.spi.CreationalContext;
 import javax.enterprise.event.Observes;
 import javax.enterprise.inject.spi.AfterBeanDiscovery;
+import javax.enterprise.inject.spi.Annotated;
 import javax.enterprise.inject.spi.Bean;
 import javax.enterprise.inject.spi.BeanManager;
 import javax.enterprise.inject.spi.BeforeBeanDiscovery;
 import javax.enterprise.inject.spi.Extension;
 import javax.enterprise.inject.spi.InjectionPoint;
 import javax.enterprise.inject.spi.ProcessBean;
+import javax.enterprise.inject.spi.ProcessInjectionTarget;
 
 import org.apache.aries.cdi.api.Component;
 import org.apache.aries.cdi.api.Config;
 import org.apache.aries.cdi.api.Reference;
+import org.apache.aries.cdi.impl.osgi.support.DelegatingInjectionTarget;
 
 @ApplicationScoped
 public class OsgiExtension implements Extension {
@@ -73,6 +77,27 @@ public class OsgiExtension implements Extension {
                 if (cfg != null) {
                     descriptor.addConfig(ip);
                 }
+            }
+        }
+    }
+
+    public <T> void processInjectionTarget(@Observes ProcessInjectionTarget<T> event) {
+        for (InjectionPoint ip : event.getInjectionTarget().getInjectionPoints()) {
+            Annotated annotated = ip.getAnnotated();
+            if (annotated.isAnnotationPresent(Reference.class)
+                    || annotated.isAnnotationPresent(Component.class)
+                    || annotated.isAnnotationPresent(Config.class)) {
+                event.setInjectionTarget(new DelegatingInjectionTarget<T>(event.getInjectionTarget()) {
+                    @Override
+                    public void inject(T instance, CreationalContext<T> ctx) {
+                        super.inject(instance, ctx);
+                        for (InjectionPoint injectionPoint : delegate.getInjectionPoints()) {
+                            ComponentDescriptor descriptor = componentRegistry.getDescriptor(injectionPoint.getBean());
+                            descriptor.inject(instance, ctx, injectionPoint);
+                        }
+                    }
+                });
+                return;
             }
         }
     }

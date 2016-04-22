@@ -22,7 +22,6 @@ import javax.inject.Inject;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.aries.cdi.api.Component;
-import org.apache.aries.cdi.api.Greedy;
 import org.apache.aries.cdi.api.Immediate;
 import org.apache.aries.cdi.api.Reference;
 import org.junit.Assert;

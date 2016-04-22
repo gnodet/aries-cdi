@@ -59,6 +59,16 @@ public abstract class AbstractDependency<D extends AbstractDependency, S, E exte
     protected volatile boolean m_greedy;
 
     /**
+     * Is this dependency dynamic (false by default) ?
+     */
+    protected volatile boolean m_dynamic;
+
+    /**
+     * Is this dependency multiple (false by default) ?
+     */
+    protected volatile boolean m_multiple;
+
+    /**
      * Has this Dependency been started by the Component implementation ? .
      */
     protected volatile boolean m_isStarted;
@@ -94,6 +104,14 @@ public abstract class AbstractDependency<D extends AbstractDependency, S, E exte
 
     public boolean isGreedy() {
         return m_greedy;
+    }
+
+    public boolean isDynamic() {
+        return m_dynamic;
+    }
+
+    public boolean isMultiple() {
+        return m_multiple;
     }
 
     /**
@@ -294,6 +312,20 @@ public abstract class AbstractDependency<D extends AbstractDependency, S, E exte
     public D setGreedy(boolean greedy) {
         ensureNotActive();
         m_greedy = greedy;
+        return (D) this;
+    }
+
+    @SuppressWarnings("unchecked")
+    public D setDynamic(boolean dynamic) {
+        ensureNotActive();
+        m_dynamic = dynamic;
+        return (D) this;
+    }
+
+    @SuppressWarnings("unchecked")
+    public D setMultiple(boolean multiple) {
+        ensureNotActive();
+        m_multiple = multiple;
         return (D) this;
     }
 

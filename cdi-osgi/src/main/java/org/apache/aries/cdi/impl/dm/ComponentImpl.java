@@ -414,7 +414,7 @@ public class ComponentImpl {
     }
     
     public String getName() {
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         Object serviceName = m_serviceName;
         // If the component provides service(s), return the services as the component name.
         if (serviceName instanceof String[]) {
@@ -723,7 +723,7 @@ public class ComponentImpl {
             break;
         case TRACKING_OPTIONAL:
             invokeCallbackSafe(dc, EventType.ADDED, e);
-            if (dc.isGreedy() && dependencyEvents.last() == e) {
+            if (dc.isGreedy() && (dependencyEvents.last() == e || dc.isMultiple())) {
                 updateInstance(dc, e, false, true);
             }
             break;
@@ -786,7 +786,7 @@ public class ComponentImpl {
         
         // Now, really remove the dependency event.
         AtomicReference<E> ref = getBoundReference(dc);
-        boolean bound = e.equals(ref.get());
+        boolean bound = e.equals(ref.get()) || (dc.isMultiple() && dc.isGreedy());
         if (bound) {
             ref.set(null);
         }
@@ -982,13 +982,13 @@ public class ComponentImpl {
         m_dependencies
                 .stream()
                 .filter(pred)
-                .forEach(d -> invokeCallbacks(type, (AbstractDependency) d));
+                .forEach(d -> invokeCallbacks((AbstractDependency) d, type));
     }
 
     private <D extends AbstractDependency<D, S, E>, S, E extends Event<S>>
-    void invokeCallbacks(EventType type, D dependency) {
-        for (E e : getDependencyEvents(dependency)) {
-            invokeCallbackSafe(dependency, type, e);
+    void invokeCallbacks(D dc, EventType type) {
+        for (E e : getDependencyEvents(dc)) {
+            invokeCallbackSafe(dc, type, e);
         }
     }
 
@@ -1033,12 +1033,10 @@ public class ComponentImpl {
     }
 
     private void notifyListeners(ComponentState state) {
-		for (ComponentStateListener l : m_listeners) {
-			l.changed(this, state);
-		}
+        m_listeners.forEach(l -> l.changed(this, state));
 	}
 	
-    private void appendProperties(StringBuffer result) {
+    private void appendProperties(StringBuilder result) {
         Dictionary<String, Object> properties = calculateServiceProperties();
         if (properties != null) {
             result.append("(");

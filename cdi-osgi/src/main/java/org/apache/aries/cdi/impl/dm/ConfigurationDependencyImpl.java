@@ -37,8 +37,7 @@ public class ConfigurationDependencyImpl extends AbstractDependency<Configuratio
     private volatile Dictionary<String, Object> m_settings;
 	private volatile String m_pid;
 	private ServiceRegistration m_registration;
-	private volatile Class<?> m_configType;
-	private final AtomicBoolean m_updateInvokedCache = new AtomicBoolean();
+    private final AtomicBoolean m_updateInvokedCache = new AtomicBoolean();
 	private volatile boolean m_needsInstance = true;
 
     public ConfigurationDependencyImpl() {
@@ -60,11 +59,9 @@ public class ConfigurationDependencyImpl extends AbstractDependency<Configuratio
     @Override
     public void start() {
         BundleContext context = m_component.getBundleContext();
-        if (context != null) { // If null, we are in a test environment
-	        Hashtable<String, Object> props = new Hashtable<>();
-	        props.put(Constants.SERVICE_PID, m_pid);
-	        m_registration = context.registerService(ManagedService.class.getName(), this, props);
-        }
+        Hashtable<String, Object> props = new Hashtable<>();
+        props.put(Constants.SERVICE_PID, m_pid);
+        m_registration = context.registerService(ManagedService.class.getName(), this, props);
         super.start();
     }
 
@@ -99,7 +96,6 @@ public class ConfigurationDependencyImpl extends AbstractDependency<Configuratio
         return "configuration";
     }
             
-	@SuppressWarnings("unchecked")
 	@Override
 	public Dictionary<String, Object> getProperties() {
 		if (m_settings == null) {
@@ -107,10 +103,10 @@ public class ConfigurationDependencyImpl extends AbstractDependency<Configuratio
 		}
 		return m_settings;
 	}
-	    
+
     @SuppressWarnings({"unchecked", "rawtypes"})
     @Override
-    public void updated(final Dictionary<String, ?> settings) throws ConfigurationException {
+    public void updated(Dictionary<String, ?> settings) throws ConfigurationException {
         doUpdated((Dictionary) settings);
     }
 

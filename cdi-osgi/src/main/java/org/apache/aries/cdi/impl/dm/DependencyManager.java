@@ -18,13 +18,8 @@
  */
 package org.apache.aries.cdi.impl.dm;
 
-import java.lang.ref.WeakReference;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.osgi.framework.BundleContext;
@@ -40,22 +35,10 @@ import org.osgi.framework.BundleContext;
  * @author <a href="mailto:dev@felix.apache.org">Felix Project Team</a>
  */
 public class DependencyManager {
-    /**
-     * The DependencyManager Activator will wait for a threadpool before creating any DM components if the following
-     * OSGi system property is set to true.
-     */
-    public final static String PARALLEL = "org.apache.felix.dependencymanager.parallel";
-
-    public static final String ASPECT = "org.apache.felix.dependencymanager.aspect";
-    public static final String SERVICEREGISTRY_CACHE_INDICES = "org.apache.felix.dependencymanager.filterindex";
-    public static final String METHOD_CACHE_SIZE = "org.apache.felix.dependencymanager.methodcache";
 
     private final BundleContext m_context;
     private final Logger m_logger;
     private final ConcurrentHashMap<ComponentImpl, ComponentImpl> m_components = new ConcurrentHashMap<>();
-
-    // service registry cache
-    private static final Set<WeakReference<DependencyManager>> m_dependencyManagers = new HashSet<>();
 
     /**
      * Creates a new dependency manager. You need to supply the
@@ -70,49 +53,12 @@ public class DependencyManager {
     }
 
     DependencyManager(BundleContext context, Logger logger) {
-        m_context = createContext(context);
+        m_context = context;
         m_logger = logger;
-        synchronized (m_dependencyManagers) {
-            m_dependencyManagers.add(new WeakReference<DependencyManager>(this));
-        }
     }
 
     Logger getLogger() {
         return m_logger;
-    }
-
-    /**
-     * Returns the list of currently created dependency managers.
-     * @return the list of currently created dependency managers
-     */
-    public static List<DependencyManager> getDependencyManagers() {
-        List<DependencyManager> result = new ArrayList<>();
-        synchronized (m_dependencyManagers) {
-            Iterator<WeakReference<DependencyManager>> iterator = m_dependencyManagers.iterator();
-            while (iterator.hasNext()) {
-                WeakReference<DependencyManager> reference = iterator.next();
-                DependencyManager manager = reference.get();
-                if (manager != null) {
-                    try {
-                        manager.getBundleContext().getBundle();
-                        result.add(manager);
-                        continue;
-                    }
-                    catch (IllegalStateException e) {
-                    }
-                }
-                iterator.remove();
-            }
-        }
-        return result;
-    }
-
-    /**
-     * Returns the bundle context associated with this dependency manager.
-     * @return the bundle context associated with this dependency manager.
-     */
-    public BundleContext getBundleContext() {
-        return m_context;
     }
 
     /**
@@ -195,10 +141,6 @@ public class DependencyManager {
             remove(component);
         }
         m_components.clear();
-    }
-
-    private BundleContext createContext(BundleContext context) {
-        return context;
     }
 
 }
