@@ -32,6 +32,7 @@ import javax.enterprise.inject.spi.ProcessInjectionTarget;
 import org.apache.aries.cdi.api.Component;
 import org.apache.aries.cdi.api.Config;
 import org.apache.aries.cdi.api.Reference;
+import org.apache.aries.cdi.api.Service;
 import org.apache.aries.cdi.impl.osgi.support.BundleContextHolder;
 import org.apache.aries.cdi.impl.osgi.support.DelegatingInjectionTarget;
 
@@ -80,6 +81,9 @@ public class OsgiExtension implements Extension {
                     descriptor.addConfig(ip);
                 }
             }
+        }
+        if (descriptor == null && event.getAnnotated().isAnnotationPresent(Service.class)) {
+            descriptor = componentRegistry.addComponent(bean);
         }
     }
 

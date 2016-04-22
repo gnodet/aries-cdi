@@ -16,16 +16,20 @@
  */
 package org.apache.aries.cdi.impl.osgi;
 
+import javax.enterprise.context.spi.Context;
 import javax.enterprise.inject.Instance;
 import javax.enterprise.inject.spi.AfterBeanDiscovery;
 import javax.enterprise.inject.spi.AnnotatedField;
 import javax.enterprise.inject.spi.Bean;
+import javax.enterprise.inject.spi.BeanManager;
 import javax.enterprise.inject.spi.InjectionPoint;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -35,6 +39,7 @@ import org.apache.aries.cdi.api.Dynamic;
 import org.apache.aries.cdi.api.Greedy;
 import org.apache.aries.cdi.api.Immediate;
 import org.apache.aries.cdi.api.Optional;
+import org.apache.aries.cdi.api.Service;
 import org.apache.aries.cdi.impl.dm.AbstractDependency;
 import org.apache.aries.cdi.impl.dm.ComponentDependencyImpl;
 import org.apache.aries.cdi.impl.dm.ComponentImpl;
@@ -47,6 +52,9 @@ import org.apache.aries.cdi.impl.dm.ServiceEventImpl;
 import org.apache.aries.cdi.impl.osgi.support.IterableInstance;
 import org.apache.aries.cdi.impl.osgi.support.MappingIterator;
 import org.apache.aries.cdi.impl.osgi.support.SimpleBean;
+import org.osgi.framework.Bundle;
+import org.osgi.framework.ServiceFactory;
+import org.osgi.framework.ServiceRegistration;
 
 public class ComponentDescriptor {
 
@@ -65,7 +73,40 @@ public class ComponentDescriptor {
                 registry.activate(ComponentDescriptor.this);
                 super.updateInstance(dc, event, update, add);
             }
+
+            @Override
+            protected Object doInstantiateComponent() {
+                return new ServiceFactory<Object>() {
+                    @Override
+                    public Object getService(Bundle bundle, ServiceRegistration registration) {
+                        BeanManager beanManager = registry.getBeanManager();
+                        Context context = beanManager.getContext(Component.class);
+                        return context.get(bean, beanManager.createCreationalContext(bean));
+                    }
+                    @Override
+                    public void ungetService(Bundle bundle, ServiceRegistration registration, Object service) {
+                        // TODO ?
+                    }
+                };
+            }
         };
+        for (Annotation annotation : bean.getQualifiers()) {
+            if (annotation instanceof Service) {
+                List<String> names = new ArrayList<>();
+                for (Class cl : ((Service) annotation).service()) {
+                    names.add(cl.getName());
+                }
+                if (names.isEmpty()) {
+                    for (Class cl : bean.getBeanClass().getInterfaces()) {
+                        names.add(cl.getName());
+                    }
+                }
+                if (names.isEmpty()) {
+                    names.add(bean.getBeanClass().getName());
+                }
+                this.component.setInterface(names.toArray(new String[names.size()]), null);
+            }
+        }
     }
 
     public Bean<Object> getBean() {

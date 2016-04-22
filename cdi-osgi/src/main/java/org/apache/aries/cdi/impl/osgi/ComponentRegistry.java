@@ -50,6 +50,10 @@ public class ComponentRegistry {
         return dm;
     }
 
+    public BeanManager getBeanManager() {
+        return beanManager;
+    }
+
     public void start(AfterBeanDiscovery event) {
         descriptors.values().forEach(d -> d.preStart(event));
         descriptors.values().forEach(ComponentDescriptor::start);

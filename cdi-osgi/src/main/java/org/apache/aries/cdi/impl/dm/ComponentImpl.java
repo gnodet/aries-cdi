@@ -538,12 +538,15 @@ public class ComponentImpl {
     // ---------------------- Package/Private methods ---------------------------
     
     void instantiateComponent() {
-        // TODO add more complex factory instantiations of one or more components in a composition here
         if (m_componentInstance == null) {
             m_logger.debug("instantiating component.");
-            m_componentInstance = m_componentDefinition;
+            m_componentInstance = doInstantiateComponent();
         }
-    }    
+    }
+
+    protected Object doInstantiateComponent() {
+        return m_componentDefinition;
+    }
     
     /**
      * Runs the state machine, to see if a change event has to trigger some component state transition.
