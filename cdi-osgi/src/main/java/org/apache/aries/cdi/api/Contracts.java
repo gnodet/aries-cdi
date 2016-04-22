@@ -22,6 +22,9 @@ import java.lang.annotation.Retention;
 
 import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
+/**
+ * Holder for @Contract annotations.
+ */
 @Qualifier
 @Retention(RUNTIME)
 public @interface Contracts {

@@ -78,9 +78,7 @@ public class MandatoryLazyReferenceTest extends AbstractTest {
         static final AtomicInteger destroyed = new AtomicInteger();
         static final AtomicReference<Hello> instance = new AtomicReference<>();
 
-        @Inject
-        @Service
-        MyService service;
+        @Inject @Service MyService service;
 
         @PostConstruct
         public void init() {

@@ -70,8 +70,7 @@ public class MandatoryNonGreedyReferenceTest extends AbstractTest {
         static final AtomicInteger created = new AtomicInteger();
         static final AtomicInteger destroyed = new AtomicInteger();
 
-        @Inject
-        @Service
+        @Inject @Service
         MyService service;
 
         @PostConstruct

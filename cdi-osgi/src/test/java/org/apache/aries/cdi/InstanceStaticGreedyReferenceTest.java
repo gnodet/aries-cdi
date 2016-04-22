@@ -82,8 +82,7 @@ public class InstanceStaticGreedyReferenceTest extends AbstractTest {
         static final AtomicInteger destroyed = new AtomicInteger();
         static final AtomicReference<Hello> instance = new AtomicReference<>();
 
-        @Inject
-        @Greedy @Service
+        @Inject @Greedy @Service
         Instance<MyService> service;
 
         @PostConstruct

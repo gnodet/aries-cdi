@@ -82,8 +82,7 @@ public class InstanceDynamicReferenceTest extends AbstractTest {
         static final AtomicInteger destroyed = new AtomicInteger();
         static final AtomicReference<Hello> instance = new AtomicReference<>();
 
-        @Inject
-        @Dynamic @Service
+        @Inject @Dynamic @Service
         Instance<MyService> service;
 
         @PostConstruct

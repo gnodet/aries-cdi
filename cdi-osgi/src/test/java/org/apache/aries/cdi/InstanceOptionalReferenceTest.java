@@ -82,8 +82,7 @@ public class InstanceOptionalReferenceTest extends AbstractTest {
         static final AtomicInteger destroyed = new AtomicInteger();
         static final AtomicReference<Hello> instance = new AtomicReference<>();
 
-        @Inject
-        @Optional @Service
+        @Inject @Optional @Service
         Instance<MyService> service;
 
         @PostConstruct

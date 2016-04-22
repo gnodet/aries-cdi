@@ -58,8 +58,7 @@ public class MandatoryIndirectReferenceTest extends AbstractTest {
     @Component
     public static class Middle {
 
-        @Inject
-        @Service
+        @Inject @Service
         MyService service;
 
         @PostConstruct

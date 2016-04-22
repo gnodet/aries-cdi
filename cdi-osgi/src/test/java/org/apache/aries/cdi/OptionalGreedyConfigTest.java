@@ -78,8 +78,7 @@ public class OptionalGreedyConfigTest extends AbstractTest {
         static final AtomicInteger destroyed = new AtomicInteger();
         static final AtomicReference<Hello> instance = new AtomicReference<>();
 
-        @Inject
-        @Optional @Config @Greedy
+        @Inject @Optional @Config @Greedy
         MyConfig config;
 
         @PostConstruct

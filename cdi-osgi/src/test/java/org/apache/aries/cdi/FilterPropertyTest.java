@@ -52,8 +52,7 @@ public class FilterPropertyTest extends AbstractTest {
 
         static final AtomicReference<Consumer> instance = new AtomicReference<>();
 
-        @Inject @Service
-        @Filter("(myattribute=1)")
+        @Inject @Service @Filter("(myattribute=1)")
         Provider provider;
 
         @PostConstruct
@@ -63,9 +62,7 @@ public class FilterPropertyTest extends AbstractTest {
 
     }
 
-    @Service
-    @Component
-    @Properties({ @Property(name = "myattribute", value = "1")})
+    @Service @Component @Properties({ @Property(name = "myattribute", value = "1")})
     public static class Provider {
 
         static final AtomicReference<Provider> instance = new AtomicReference<>();

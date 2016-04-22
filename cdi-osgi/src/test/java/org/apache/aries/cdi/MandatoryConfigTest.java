@@ -75,8 +75,7 @@ public class MandatoryConfigTest extends AbstractTest {
         static final AtomicInteger destroyed = new AtomicInteger();
         static final AtomicReference<Hello> instance = new AtomicReference<>();
 
-        @Inject
-        @Config
+        @Inject @Config
         MyConfig config;
 
         @PostConstruct

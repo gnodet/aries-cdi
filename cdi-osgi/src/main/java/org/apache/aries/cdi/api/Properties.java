@@ -22,6 +22,9 @@ import java.lang.annotation.Retention;
 
 import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
+/**
+ * Holder for @Property annotations.
+ */
 @Qualifier
 @Retention(RUNTIME)
 public @interface Properties {

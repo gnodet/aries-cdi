@@ -79,8 +79,7 @@ public class InstanceStaticReluctantReferenceTest extends AbstractTest {
         static final AtomicInteger destroyed = new AtomicInteger();
         static final AtomicReference<Hello> instance = new AtomicReference<>();
 
-        @Inject
-        @Service
+        @Inject @Service
         Instance<MyService> service;
 
         @PostConstruct

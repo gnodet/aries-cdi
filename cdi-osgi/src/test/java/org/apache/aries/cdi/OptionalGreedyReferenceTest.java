@@ -70,8 +70,7 @@ public class OptionalGreedyReferenceTest extends AbstractTest {
         static final AtomicInteger destroyed = new AtomicInteger();
         static final AtomicReference<Hello> instance = new AtomicReference<>();
 
-        @Inject
-        @Optional @Greedy @Service
+        @Inject @Optional @Greedy @Service
         MyService service;
 
         @PostConstruct

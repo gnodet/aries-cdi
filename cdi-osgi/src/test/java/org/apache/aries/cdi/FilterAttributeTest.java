@@ -50,8 +50,7 @@ public class FilterAttributeTest extends AbstractTest {
     }
 
     @Attribute("myattribute")
-    @Retention(RUNTIME)
-    @Qualifier
+    @Retention(RUNTIME) @Qualifier
     public @interface MyAttribute {
         int value();
     }
@@ -61,8 +60,7 @@ public class FilterAttributeTest extends AbstractTest {
 
         static final AtomicReference<Consumer> instance = new AtomicReference<>();
 
-        @Inject @Service
-        @MyAttribute(1)
+        @Inject @Service @MyAttribute(1)
         Provider provider;
 
         @PostConstruct
@@ -72,8 +70,7 @@ public class FilterAttributeTest extends AbstractTest {
 
     }
 
-    @Service
-    @Component @MyAttribute(1)
+    @Service @Component @MyAttribute(1)
     public static class Provider {
 
         static final AtomicReference<Provider> instance = new AtomicReference<>();

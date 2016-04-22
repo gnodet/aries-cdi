@@ -71,8 +71,7 @@ public class MandatoryGreedyReferenceTest extends AbstractTest {
         static final AtomicInteger created = new AtomicInteger();
         static final AtomicInteger destroyed = new AtomicInteger();
 
-        @Inject
-        @Greedy @Service
+        @Inject @Greedy @Service
         MyService service;
 
         @PostConstruct
