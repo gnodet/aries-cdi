@@ -25,20 +25,27 @@ import javax.enterprise.inject.spi.BeanManager;
 import javax.enterprise.inject.spi.InjectionPoint;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Dictionary;
 import java.util.HashMap;
+import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.aries.cdi.api.Attribute;
 import org.apache.aries.cdi.api.Component;
 import org.apache.aries.cdi.api.Config;
 import org.apache.aries.cdi.api.Dynamic;
+import org.apache.aries.cdi.api.Filter;
 import org.apache.aries.cdi.api.Greedy;
 import org.apache.aries.cdi.api.Immediate;
 import org.apache.aries.cdi.api.Optional;
+import org.apache.aries.cdi.api.Properties;
+import org.apache.aries.cdi.api.Property;
 import org.apache.aries.cdi.api.Service;
 import org.apache.aries.cdi.impl.dm.AbstractDependency;
 import org.apache.aries.cdi.impl.dm.ComponentDependencyImpl;
@@ -90,9 +97,11 @@ public class ComponentDescriptor {
                 };
             }
         };
+
+        List<String> names = new ArrayList<>();
+        Dictionary<String, Object> properties = new Hashtable<>();
         for (Annotation annotation : bean.getQualifiers()) {
             if (annotation instanceof Service) {
-                List<String> names = new ArrayList<>();
                 for (Class cl : ((Service) annotation).service()) {
                     names.add(cl.getName());
                 }
@@ -104,8 +113,32 @@ public class ComponentDescriptor {
                 if (names.isEmpty()) {
                     names.add(bean.getBeanClass().getName());
                 }
-                this.component.setInterface(names.toArray(new String[names.size()]), null);
+            } else if (annotation instanceof Properties) {
+                for (Property prop : ((Properties) annotation).value()) {
+                    properties.put(prop.name(), prop.value());
+                }
+            } else {
+                Class<? extends Annotation> annClass = annotation.annotationType();
+                Attribute attr = annClass.getAnnotation(Attribute.class);
+                if (attr != null) {
+                    String name = attr.value();
+                    Object value;
+                    try {
+                        Method[] methods = annClass.getDeclaredMethods();
+                        if (methods != null && methods.length == 1) {
+                            value = methods[0].invoke(annotation);
+                        } else {
+                            throw new IllegalArgumentException("Bad attribute " + annClass);
+                        }
+                    } catch (Throwable t) {
+                        throw new RuntimeException(t);
+                    }
+                    properties.put(name, value);
+                }
             }
+        }
+        if (!names.isEmpty()) {
+            this.component.setInterface(names.toArray(new String[names.size()]), properties);
         }
     }
 
@@ -191,6 +224,7 @@ public class ComponentDescriptor {
                 Type raw = ((ParameterizedType) type).getRawType();
                 if (raw == Instance.class) {
                     isInstance = true;
+                    Type tp = ((ParameterizedType) type).getActualTypeArguments()[0];
                     clazz = (Class) ((ParameterizedType) type).getActualTypeArguments()[0];
                 } else {
                     isInstance = false;
@@ -216,6 +250,51 @@ public class ComponentDescriptor {
         public ReferenceDependency(InjectionPoint injectionPoint) {
             super(injectionPoint);
 
+            List<String> filters = new ArrayList<>();
+            for (Annotation annotation : injectionPoint.getAnnotated().getAnnotations()) {
+                if (annotation instanceof Filter) {
+                    String filter = ((Filter) annotation).value();
+                    if (!filter.startsWith("(") || !filter.endsWith(")")) {
+                        filter = "(" + filter + ")";
+                    }
+                    filters.add(filter);
+                } else {
+                    Class<? extends Annotation> annClass = annotation.annotationType();
+                    Attribute attr = annClass.getAnnotation(Attribute.class);
+                    if (attr != null) {
+                        String name = attr.value();
+                        Object value;
+                        try {
+                            Method[] methods = annClass.getDeclaredMethods();
+                            if (methods != null && methods.length == 1) {
+                                value = methods[0].invoke(annotation);
+                            } else {
+                                throw new IllegalArgumentException("Bad attribute " + annClass);
+                            }
+                        } catch (Throwable t) {
+                            throw new RuntimeException(t);
+                        }
+                        filters.add("(" + name + "=" + value + ")");
+                    }
+                }
+            }
+            String filter;
+            switch (filters.size()) {
+                case 0:
+                    filter = null;
+                    break;
+                case 1:
+                    filter = filters.get(0);
+                    break;
+                default:
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("(&");
+                    filters.forEach(sb::append);
+                    sb.append(")");
+                    filter = sb.toString();
+                    break;
+            }
+
             boolean optional = injectionPoint.getAnnotated().isAnnotationPresent(Optional.class);
             boolean greedy = injectionPoint.getAnnotated().isAnnotationPresent(Greedy.class);
             boolean dynamic = injectionPoint.getAnnotated().isAnnotationPresent(Dynamic.class);
@@ -225,7 +304,7 @@ public class ComponentDescriptor {
                     .setGreedy(greedy)
                     .setDynamic(dynamic)
                     .setMultiple(multiple)
-                    .setService(clazz);
+                    .setService(clazz, filter);
             component.add(sd);
         }
 
