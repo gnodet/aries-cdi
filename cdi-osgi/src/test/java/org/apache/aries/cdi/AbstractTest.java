@@ -19,14 +19,19 @@ package org.apache.aries.cdi;
 import java.io.File;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Dictionary;
 import java.util.HashMap;
 import java.util.Hashtable;
+import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
+import java.util.UUID;
 
-import org.apache.aries.cdi.impl.osgi.support.BundleContextHolder;
 import org.apache.aries.cdi.impl.osgi.OsgiExtension;
+import org.apache.aries.cdi.impl.osgi.support.BundleContextHolder;
 import org.jboss.weld.environment.se.Weld;
 import org.jboss.weld.environment.se.WeldContainer;
 import org.junit.After;
@@ -36,6 +41,7 @@ import org.junit.rules.TemporaryFolder;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.BundleException;
 import org.osgi.framework.Constants;
+import org.osgi.framework.InvalidSyntaxException;
 import org.osgi.framework.ServiceReference;
 import org.osgi.framework.ServiceRegistration;
 import org.osgi.framework.launch.Framework;
@@ -49,7 +55,7 @@ public abstract class AbstractTest {
     public TemporaryFolder cache;
 
     Framework framework;
-    WeldContainer weld;
+    List<WeldContainer> welds = new ArrayList<>();
 
     AbstractTest() {
         File root = new File("target/osgi");
@@ -70,10 +76,10 @@ public abstract class AbstractTest {
     @After
     public void tearDown() throws BundleException {
         framework.stop();
-        if (weld != null) {
+        for (WeldContainer weld : welds) {
             weld.close();
-            weld = null;
         }
+        welds.clear();
     }
 
     protected BundleContext getBundleContext() {
@@ -94,6 +100,18 @@ public abstract class AbstractTest {
         }
     }
 
+    protected <T> T getService(Class<T> clazz, String filter) throws InvalidSyntaxException {
+        ServiceReference<?>[] refs = getBundleContext().getServiceReferences(clazz.getName(), filter);
+        if (refs != null && refs.length > 0) {
+            List<ServiceReference<?>> list = new ArrayList<>();
+            list.addAll(Arrays.asList(refs));
+            Collections.sort(list);
+            return getBundleContext().getService((ServiceReference<T>) list.get(0));
+        } else {
+            return null;
+        }
+    }
+
     protected <T> ServiceRegistration<T> register(Class<T> clazz, T t) {
         return getBundleContext().registerService(clazz, t, null);
     }
@@ -104,12 +122,18 @@ public abstract class AbstractTest {
     }
 
     protected WeldContainer createCdi(Class... classes) {
+        return createCdi(UUID.randomUUID().toString(), classes);
+    }
+
+    protected WeldContainer createCdi(String id, Class... classes) {
         BundleContextHolder.setBundleContext(getBundleContext());
-        weld = new Weld()
+        WeldContainer weld = new Weld()
+                .containerId(id)
                 .disableDiscovery()
                 .beanClasses(classes)
                 .extensions(new OsgiExtension())
                 .initialize();
+        welds.add(weld);
         return weld;
     }
 

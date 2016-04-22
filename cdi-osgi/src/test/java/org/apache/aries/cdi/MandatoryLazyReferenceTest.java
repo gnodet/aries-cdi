@@ -46,7 +46,7 @@ public class MandatoryLazyReferenceTest extends AbstractTest {
         Assert.assertNull(Hello.instance.get());
 
         // TODO: how to get the bean correctly ?
-        Hello hello = weld.select(Hello.class, AnyLiteral.INSTANCE).get();
+        Hello hello = welds.iterator().next().select(Hello.class, AnyLiteral.INSTANCE).get();
 
         Assert.assertEquals(1, Hello.created.get());
         Assert.assertEquals(0, Hello.destroyed.get());
