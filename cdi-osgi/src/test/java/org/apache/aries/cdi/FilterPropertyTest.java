@@ -25,7 +25,6 @@ import org.apache.aries.cdi.api.Filter;
 import org.apache.aries.cdi.api.Immediate;
 import org.apache.aries.cdi.api.Properties;
 import org.apache.aries.cdi.api.Property;
-import org.apache.aries.cdi.api.Reference;
 import org.apache.aries.cdi.api.Service;
 import org.junit.Assert;
 import org.junit.Test;
@@ -53,7 +52,8 @@ public class FilterPropertyTest extends AbstractTest {
 
         static final AtomicReference<Consumer> instance = new AtomicReference<>();
 
-        @Inject @Reference  @Filter("(myattribute=1)")
+        @Inject @Service
+        @Filter("(myattribute=1)")
         Provider provider;
 
         @PostConstruct
@@ -63,7 +63,8 @@ public class FilterPropertyTest extends AbstractTest {
 
     }
 
-    @Service @Component
+    @Service
+    @Component
     @Properties({ @Property(name = "myattribute", value = "1")})
     public static class Provider {
 

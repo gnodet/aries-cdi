@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.aries.cdi.api.Component;
 import org.apache.aries.cdi.api.Immediate;
-import org.apache.aries.cdi.api.Reference;
+import org.apache.aries.cdi.api.Service;
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -43,14 +43,14 @@ public class InstanceStaticReluctantReferenceTest extends AbstractTest {
         Assert.assertEquals(0, Hello.created.get());
         Assert.assertEquals(0, Hello.destroyed.get());
 
-        ServiceRegistration<Service> registration1 = register(Service.class, () -> "Hello 1 !!");
+        ServiceRegistration<MyService> registration1 = register(MyService.class, () -> "Hello 1 !!");
 
 
         Assert.assertEquals(1, Hello.created.get());
         Assert.assertEquals(0, Hello.destroyed.get());
         Assert.assertEquals("Hello 1 !!", Hello.instance.get().sayHelloWorld());
 
-        ServiceRegistration<Service> registration2 = register(Service.class, () -> "Hello 2 !!");
+        ServiceRegistration<MyService> registration2 = register(MyService.class, () -> "Hello 2 !!");
 
         Assert.assertEquals(1, Hello.created.get());
         Assert.assertEquals(0, Hello.destroyed.get());
@@ -66,7 +66,7 @@ public class InstanceStaticReluctantReferenceTest extends AbstractTest {
         Assert.assertEquals(2, Hello.destroyed.get());
     }
 
-    public interface Service {
+    public interface MyService {
 
         String hello();
 
@@ -80,8 +80,8 @@ public class InstanceStaticReluctantReferenceTest extends AbstractTest {
         static final AtomicReference<Hello> instance = new AtomicReference<>();
 
         @Inject
-        @Reference
-        Instance<Service> service;
+        @Service
+        Instance<MyService> service;
 
         @PostConstruct
         public void init() {

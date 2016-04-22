@@ -39,6 +39,8 @@ import java.util.Set;
 import org.apache.aries.cdi.api.Attribute;
 import org.apache.aries.cdi.api.Component;
 import org.apache.aries.cdi.api.Config;
+import org.apache.aries.cdi.api.Contract;
+import org.apache.aries.cdi.api.Contracts;
 import org.apache.aries.cdi.api.Dynamic;
 import org.apache.aries.cdi.api.Filter;
 import org.apache.aries.cdi.api.Greedy;
@@ -98,20 +100,15 @@ public class ComponentDescriptor {
             }
         };
 
+        boolean hasService = false;
         List<String> names = new ArrayList<>();
         Dictionary<String, Object> properties = new Hashtable<>();
         for (Annotation annotation : bean.getQualifiers()) {
             if (annotation instanceof Service) {
-                for (Class cl : ((Service) annotation).service()) {
-                    names.add(cl.getName());
-                }
-                if (names.isEmpty()) {
-                    for (Class cl : bean.getBeanClass().getInterfaces()) {
-                        names.add(cl.getName());
-                    }
-                }
-                if (names.isEmpty()) {
-                    names.add(bean.getBeanClass().getName());
+                hasService = true;
+            } else if (annotation instanceof Contracts) {
+                for (Contract ctr : ((Contracts) annotation).value()) {
+                    names.add(ctr.value().getName());
                 }
             } else if (annotation instanceof Properties) {
                 for (Property prop : ((Properties) annotation).value()) {
@@ -137,7 +134,15 @@ public class ComponentDescriptor {
                 }
             }
         }
-        if (!names.isEmpty()) {
+        if (hasService) {
+            if (names.isEmpty()) {
+                for (Class cl : bean.getBeanClass().getInterfaces()) {
+                    names.add(cl.getName());
+                }
+            }
+            if (names.isEmpty()) {
+                names.add(bean.getBeanClass().getName());
+            }
             this.component.setInterface(names.toArray(new String[names.size()]), properties);
         }
     }

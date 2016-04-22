@@ -25,7 +25,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.aries.cdi.api.Attribute;
 import org.apache.aries.cdi.api.Component;
 import org.apache.aries.cdi.api.Immediate;
-import org.apache.aries.cdi.api.Reference;
 import org.apache.aries.cdi.api.Service;
 import org.junit.Assert;
 import org.junit.Test;
@@ -62,7 +61,8 @@ public class FilterAttributeTest extends AbstractTest {
 
         static final AtomicReference<Consumer> instance = new AtomicReference<>();
 
-        @Inject @Reference @MyAttribute(1)
+        @Inject @Service
+        @MyAttribute(1)
         Provider provider;
 
         @PostConstruct
@@ -72,7 +72,8 @@ public class FilterAttributeTest extends AbstractTest {
 
     }
 
-    @Service @Component @MyAttribute(1)
+    @Service
+    @Component @MyAttribute(1)
     public static class Provider {
 
         static final AtomicReference<Provider> instance = new AtomicReference<>();

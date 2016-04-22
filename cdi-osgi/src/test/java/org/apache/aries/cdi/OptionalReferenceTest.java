@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.aries.cdi.api.Component;
 import org.apache.aries.cdi.api.Immediate;
 import org.apache.aries.cdi.api.Optional;
-import org.apache.aries.cdi.api.Reference;
+import org.apache.aries.cdi.api.Service;
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -41,7 +41,7 @@ public class OptionalReferenceTest extends AbstractTest {
 
     }
 
-    public interface Service {
+    public interface MyService {
 
         String hello();
 
@@ -54,8 +54,8 @@ public class OptionalReferenceTest extends AbstractTest {
         static final AtomicInteger destroyed = new AtomicInteger();
 
         @Inject
-        @Optional @Reference
-        Service service;
+        @Optional @Service
+        MyService service;
 
         @PostConstruct
         public void init() {

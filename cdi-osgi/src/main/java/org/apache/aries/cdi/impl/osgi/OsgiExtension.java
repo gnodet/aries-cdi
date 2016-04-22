@@ -32,7 +32,6 @@ import javax.enterprise.inject.spi.ProcessInjectionTarget;
 
 import org.apache.aries.cdi.api.Component;
 import org.apache.aries.cdi.api.Config;
-import org.apache.aries.cdi.api.Reference;
 import org.apache.aries.cdi.api.Service;
 import org.apache.aries.cdi.impl.osgi.support.BundleContextHolder;
 import org.apache.aries.cdi.impl.osgi.support.DelegatingInjectionTarget;
@@ -59,7 +58,7 @@ public class OsgiExtension implements Extension {
         Bean<Object> bean = (Bean) event.getBean();
         ComponentDescriptor descriptor = null;
         for (InjectionPoint ip : event.getBean().getInjectionPoints()) {
-            Reference ref = ip.getAnnotated().getAnnotation(Reference.class);
+            Service ref = ip.getAnnotated().getAnnotation(Service.class);
             Component cmp = ip.getAnnotated().getAnnotation(Component.class);
             Config    cfg = ip.getAnnotated().getAnnotation(Config.class);
             if (ref != null || cmp != null || cfg != null) {
@@ -83,7 +82,7 @@ public class OsgiExtension implements Extension {
                 }
             }
         }
-        if (descriptor == null && event.getAnnotated().isAnnotationPresent(Service.class)) {
+        if (descriptor == null && event.getAnnotated().isAnnotationPresent(org.apache.aries.cdi.api.Service.class)) {
             descriptor = componentRegistry.addComponent(bean);
         }
     }
@@ -91,7 +90,7 @@ public class OsgiExtension implements Extension {
     public <T> void processInjectionTarget(@Observes ProcessInjectionTarget<T> event) {
         for (InjectionPoint ip : event.getInjectionTarget().getInjectionPoints()) {
             Annotated annotated = ip.getAnnotated();
-            if (annotated.isAnnotationPresent(Reference.class)
+            if (annotated.isAnnotationPresent(Service.class)
                     || annotated.isAnnotationPresent(Component.class)
                     || annotated.isAnnotationPresent(Config.class)) {
                 event.setInjectionTarget(new DelegatingInjectionTarget<T>(event.getInjectionTarget()) {

@@ -29,9 +29,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.aries.cdi.api.Component;
 import org.apache.aries.cdi.api.Dynamic;
 import org.apache.aries.cdi.api.Immediate;
-import org.apache.aries.cdi.api.Reference;
+import org.apache.aries.cdi.api.Service;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.osgi.framework.ServiceRegistration;
 
@@ -45,13 +44,13 @@ public class InstanceDynamicReferenceTest extends AbstractTest {
         Assert.assertEquals(0, Hello.destroyed.get());
         Assert.assertNull(Hello.instance.get());
 
-        ServiceRegistration<Service> registration1 = register(Service.class, () -> "Hello 1 !!");
+        ServiceRegistration<MyService> registration1 = register(MyService.class, () -> "Hello 1 !!");
 
         Assert.assertEquals(1, Hello.created.get());
         Assert.assertEquals(0, Hello.destroyed.get());
         Assert.assertEquals("Hello 1 !!", Hello.instance.get().sayHelloWorld());
 
-        ServiceRegistration<Service> registration2 = register(Service.class, () -> "Hello 2 !!");
+        ServiceRegistration<MyService> registration2 = register(MyService.class, () -> "Hello 2 !!");
 
         Assert.assertEquals(1, Hello.created.get());
         Assert.assertEquals(0, Hello.destroyed.get());
@@ -70,7 +69,7 @@ public class InstanceDynamicReferenceTest extends AbstractTest {
         Assert.assertNull(Hello.instance.get());
     }
 
-    public interface Service {
+    public interface MyService {
 
         String hello();
 
@@ -84,8 +83,8 @@ public class InstanceDynamicReferenceTest extends AbstractTest {
         static final AtomicReference<Hello> instance = new AtomicReference<>();
 
         @Inject
-        @Dynamic @Reference
-        Instance<Service> service;
+        @Dynamic @Service
+        Instance<MyService> service;
 
         @PostConstruct
         public void init() {

@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.aries.cdi.api.Component;
-import org.apache.aries.cdi.api.Reference;
+import org.apache.aries.cdi.api.Service;
 import org.junit.Assert;
 import org.junit.Test;
 import org.osgi.framework.ServiceRegistration;
@@ -39,7 +39,7 @@ public class MandatoryLazyReferenceTest extends AbstractTest {
         Assert.assertEquals(0, Hello.created.get());
         Assert.assertEquals(0, Hello.destroyed.get());
 
-        ServiceRegistration<Service> registration = register(Service.class, () -> "Hello world !!");
+        ServiceRegistration<MyService> registration = register(MyService.class, () -> "Hello world !!");
 
         Assert.assertEquals(0, Hello.created.get());
         Assert.assertEquals(0, Hello.destroyed.get());
@@ -65,7 +65,7 @@ public class MandatoryLazyReferenceTest extends AbstractTest {
 
     }
 
-    public interface Service {
+    public interface MyService {
 
         String hello();
 
@@ -79,8 +79,8 @@ public class MandatoryLazyReferenceTest extends AbstractTest {
         static final AtomicReference<Hello> instance = new AtomicReference<>();
 
         @Inject
-        @Reference
-        Service service;
+        @Service
+        MyService service;
 
         @PostConstruct
         public void init() {

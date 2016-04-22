@@ -25,7 +25,7 @@ import org.apache.aries.cdi.api.Component;
 import org.apache.aries.cdi.api.Greedy;
 import org.apache.aries.cdi.api.Immediate;
 import org.apache.aries.cdi.api.Optional;
-import org.apache.aries.cdi.api.Reference;
+import org.apache.aries.cdi.api.Service;
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -41,7 +41,7 @@ public class OptionalGreedyReferenceTest extends AbstractTest {
         Assert.assertEquals(1, Hello.created.get());
         Assert.assertEquals(0, Hello.destroyed.get());
 
-        ServiceRegistration<Service> registration = register(Service.class, () -> "Hello world !!");
+        ServiceRegistration<MyService> registration = register(MyService.class, () -> "Hello world !!");
 
         Assert.assertEquals(2, Hello.created.get());
         Assert.assertEquals(1, Hello.destroyed.get());
@@ -52,7 +52,7 @@ public class OptionalGreedyReferenceTest extends AbstractTest {
         Assert.assertEquals(2, Hello.destroyed.get());
     }
 
-    public interface Service {
+    public interface MyService {
 
         String hello();
 
@@ -65,8 +65,8 @@ public class OptionalGreedyReferenceTest extends AbstractTest {
         static final AtomicInteger destroyed = new AtomicInteger();
 
         @Inject
-        @Optional @Greedy @Reference
-        Service service;
+        @Optional @Greedy @Service
+        MyService service;
 
         @PostConstruct
         public void init() {

@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.aries.cdi.api.Component;
 import org.apache.aries.cdi.api.Immediate;
-import org.apache.aries.cdi.api.Reference;
+import org.apache.aries.cdi.api.Service;
 import org.junit.Assert;
 import org.junit.Test;
 import org.osgi.framework.ServiceRegistration;
@@ -37,7 +37,7 @@ public class MandatoryReferenceTest extends AbstractTest {
         Assert.assertEquals(0, Hello.created.get());
         Assert.assertEquals(0, Hello.destroyed.get());
 
-        ServiceRegistration<Service> registration = register(Service.class, () -> "Hello world !!");
+        ServiceRegistration<MyService> registration = register(MyService.class, () -> "Hello world !!");
 
         Assert.assertEquals(1, Hello.created.get());
         Assert.assertEquals(0, Hello.destroyed.get());
@@ -48,7 +48,7 @@ public class MandatoryReferenceTest extends AbstractTest {
         Assert.assertEquals(1, Hello.destroyed.get());
     }
 
-    public interface Service {
+    public interface MyService {
 
         String hello();
 
@@ -61,8 +61,8 @@ public class MandatoryReferenceTest extends AbstractTest {
         static final AtomicInteger destroyed = new AtomicInteger();
 
         @Inject
-        @Reference
-        Service service;
+        @Service
+        MyService service;
 
         @PostConstruct
         public void init() {
