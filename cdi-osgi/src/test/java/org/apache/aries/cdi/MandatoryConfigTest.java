@@ -25,7 +25,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.aries.cdi.api.Component;
 import org.apache.aries.cdi.api.Config;
 import org.apache.aries.cdi.api.Immediate;
-import org.apache.aries.cdi.impl.osgi.BundleContextHolder;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -33,7 +32,6 @@ public class MandatoryConfigTest extends AbstractTest {
 
     @Test(timeout = 10000)
     public void test() throws Exception {
-        BundleContextHolder.setBundleContext(getBundleContext());
         startConfigAdmin();
         createCdi(Hello.class);
 

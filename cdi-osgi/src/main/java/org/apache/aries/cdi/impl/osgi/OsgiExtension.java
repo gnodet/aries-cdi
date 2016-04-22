@@ -32,6 +32,7 @@ import javax.enterprise.inject.spi.ProcessInjectionTarget;
 import org.apache.aries.cdi.api.Component;
 import org.apache.aries.cdi.api.Config;
 import org.apache.aries.cdi.api.Reference;
+import org.apache.aries.cdi.impl.osgi.support.BundleContextHolder;
 import org.apache.aries.cdi.impl.osgi.support.DelegatingInjectionTarget;
 
 @ApplicationScoped
@@ -52,21 +53,22 @@ public class OsgiExtension implements Extension {
     }
 
     public <T> void processBean(@Observes ProcessBean<T> event) {
-        Bean<T> bean = event.getBean();
-        ComponentDescriptor<T> descriptor = null;
+        @SuppressWarnings("unchecked")
+        Bean<Object> bean = (Bean) event.getBean();
+        ComponentDescriptor descriptor = null;
         for (InjectionPoint ip : event.getBean().getInjectionPoints()) {
             Reference ref = ip.getAnnotated().getAnnotation(Reference.class);
             Component cmp = ip.getAnnotated().getAnnotation(Component.class);
             Config    cfg = ip.getAnnotated().getAnnotation(Config.class);
             if (ref != null || cmp != null || cfg != null) {
                 if (bean.getScope() != Component.class) {
-                    throw new IllegalArgumentException("Beans with @Reference injection points should be annotated with @Component");
+                    throw new IllegalArgumentException("Beans with @Reference, @Component or @Config injection points should be annotated with @Component");
                 }
                 if (descriptor == null) {
                     descriptor = componentRegistry.addComponent(bean);
                 }
-                if (ref != null && cmp != null) {
-                    throw new IllegalArgumentException("Can not use both @Reference and @Component on injection point");
+                if ((ref != null ? 1 : 0) + (cmp != null ? 1 : 0) + (cfg != null ? 1 : 0) > 1) {
+                    throw new IllegalArgumentException("Only one of @Reference, @Component or @Config can be set on injection point");
                 }
                 if (ref != null) {
                     descriptor.addReference(ip);
@@ -93,7 +95,7 @@ public class OsgiExtension implements Extension {
                         super.inject(instance, ctx);
                         for (InjectionPoint injectionPoint : delegate.getInjectionPoints()) {
                             ComponentDescriptor descriptor = componentRegistry.getDescriptor(injectionPoint.getBean());
-                            descriptor.inject(instance, ctx, injectionPoint);
+                            descriptor.inject(instance, injectionPoint);
                         }
                     }
                 });

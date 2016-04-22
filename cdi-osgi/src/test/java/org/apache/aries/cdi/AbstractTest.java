@@ -25,7 +25,7 @@ import java.util.Hashtable;
 import java.util.Map;
 import java.util.ServiceLoader;
 
-import org.apache.aries.cdi.impl.osgi.BundleContextHolder;
+import org.apache.aries.cdi.impl.osgi.support.BundleContextHolder;
 import org.apache.aries.cdi.impl.osgi.OsgiExtension;
 import org.jboss.weld.environment.se.Weld;
 import org.jboss.weld.environment.se.WeldContainer;
@@ -81,6 +81,7 @@ public abstract class AbstractTest {
     }
 
     protected void startConfigAdmin() {
+        BundleContextHolder.setBundleContext(getBundleContext());
         new org.apache.felix.cm.impl.ConfigurationManager().start(getBundleContext());
     }
 
@@ -103,6 +104,7 @@ public abstract class AbstractTest {
     }
 
     protected WeldContainer createCdi(Class... classes) {
+        BundleContextHolder.setBundleContext(getBundleContext());
         weld = new Weld()
                 .disableDiscovery()
                 .beanClasses(classes)

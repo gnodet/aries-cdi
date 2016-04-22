@@ -14,20 +14,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.aries.cdi.impl.osgi;
+package org.apache.aries.cdi.impl.osgi.support;
 
-import org.osgi.framework.BundleContext;
+import java.util.Iterator;
+import java.util.function.Function;
 
-public class BundleContextHolder {
+public class MappingIterator<U, V> implements Iterator<V> {
 
-    private static final ThreadLocal<BundleContext> STORAGE = new ThreadLocal<>();
+    private final Iterator<U> iterator;
+    private final Function<U, V> mapper;
 
-    public static BundleContext getBundleContext() {
-        return STORAGE.get();
+    public MappingIterator(Iterator<U> iterator, Function<U, V> mapper) {
+        this.iterator = iterator;
+        this.mapper = mapper;
     }
 
-    public static void setBundleContext(BundleContext bundleContext) {
-        STORAGE.set(bundleContext);
+    @Override
+    public boolean hasNext() {
+        return iterator.hasNext();
+    }
+
+    @Override
+    public V next() {
+        return mapper.apply(iterator.next());
     }
 
 }

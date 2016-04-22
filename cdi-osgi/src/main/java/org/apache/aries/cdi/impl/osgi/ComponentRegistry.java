@@ -36,7 +36,7 @@ public class ComponentRegistry {
 
     private final BeanManager beanManager;
     private final BundleContext bundleContext;
-    private final Map<Bean<?>, ComponentDescriptor<?>> descriptors = new HashMap<>();
+    private final Map<Bean<?>, ComponentDescriptor> descriptors = new HashMap<>();
 
     private final DependencyManager dm;
 
@@ -55,8 +55,8 @@ public class ComponentRegistry {
         descriptors.values().forEach(ComponentDescriptor::start);
     }
 
-    public <S> ComponentDescriptor<S> addComponent(Bean<S> component) {
-        ComponentDescriptor<S> descriptor = new ComponentDescriptor<S>(component, this);
+    public ComponentDescriptor addComponent(Bean<Object> component) {
+        ComponentDescriptor descriptor = new ComponentDescriptor(component, this);
         descriptors.put(component, descriptor);
         return descriptor;
     }
@@ -69,26 +69,27 @@ public class ComponentRegistry {
         return descriptors.keySet();
     }
 
-    public ComponentDescriptor<?> getDescriptor(Bean<?> component) {
+    public ComponentDescriptor getDescriptor(Bean<?> component) {
         return descriptors.get(component);
     }
 
-    public <S> void activate(ComponentDescriptor<S> descriptor) {
+    public void activate(ComponentDescriptor descriptor) {
         if (descriptor.isImmediate()) {
+            @SuppressWarnings("unchecked")
+            Bean<Object> bean = (Bean) descriptor.getBean();
             Context context = beanManager.getContext(Component.class);
-            CreationalContext<S> creationalContext = beanManager.createCreationalContext(descriptor.getBean());
-            context.get(descriptor.getBean(), creationalContext);
+            context.get(bean, beanManager.createCreationalContext(bean));
         }
     }
 
-    public <S> void deactivate(ComponentDescriptor<S> descriptor) {
+    public void deactivate(ComponentDescriptor descriptor) {
         AlterableContext context = (AlterableContext) beanManager.getContext(Component.class);
         context.destroy(descriptor.getBean());
     }
 
-    public ComponentDescriptor<?> resolve(Type type, Annotation[] qualifiers) {
+    public ComponentDescriptor resolve(Type type, Annotation[] qualifiers) {
         Bean<?> resolved = beanManager.resolve(beanManager.getBeans(type, qualifiers));
-        ComponentDescriptor<?> desc =  descriptors.get(resolved);
+        ComponentDescriptor desc =  descriptors.get(resolved);
         if (desc == null) {
             throw new IllegalStateException("Unable to find component descriptor for " + resolved);
         }
