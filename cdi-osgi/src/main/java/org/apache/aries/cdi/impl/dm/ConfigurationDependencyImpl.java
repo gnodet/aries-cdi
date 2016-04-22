@@ -145,7 +145,8 @@ public class ConfigurationDependencyImpl extends AbstractDependency<Configuratio
         }
         else if ((oldSettings != null) && (settings != null)) {
             // Notify the component that our dependency has changed.
-            m_component.handleEvent(this, EventType.CHANGED, new ConfigurationEventImpl(m_pid, settings));
+//            m_component.handleEvent(this, EventType.CHANGED, new ConfigurationEventImpl(m_pid, settings));
+            m_component.handleEvent(this, EventType.ADDED, new ConfigurationEventImpl(m_pid, settings));
         }
         else if ((oldSettings != null) && (settings == null)) {
             // Notify the component that our dependency has been removed.

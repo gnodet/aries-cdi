@@ -16,6 +16,7 @@
  */
 package org.apache.aries.cdi.impl.osgi;
 
+import javax.enterprise.context.Dependent;
 import javax.enterprise.context.spi.Context;
 import javax.enterprise.inject.Instance;
 import javax.enterprise.inject.spi.AfterBeanDiscovery;
@@ -315,7 +316,7 @@ public class ComponentDescriptor {
 
         @Override
         public void preStart(AfterBeanDiscovery event) {
-            event.addBean(new SimpleBean<>(clazz, Component.class, injectionPoint, this::getService));
+            event.addBean(new SimpleBean<>(clazz, Dependent.class, injectionPoint, this::getService));
         }
 
         protected Object getService() {
@@ -372,22 +373,25 @@ public class ComponentDescriptor {
             Config config = injectionPoint.getAnnotated().getAnnotation(Config.class);
             String pid = config.pid().isEmpty() ? clazz.getName() : config.pid();
             boolean optional = injectionPoint.getAnnotated().isAnnotationPresent(Optional.class);
+            boolean greedy = injectionPoint.getAnnotated().isAnnotationPresent(Greedy.class);
             boolean dynamic = injectionPoint.getAnnotated().isAnnotationPresent(Dynamic.class);
 
             cd = new ConfigurationDependencyImpl()
                     .setPid(pid)
                     .setRequired(!optional)
+                    .setGreedy(greedy)
                     .setDynamic(dynamic);
             component.add(cd);
         }
 
         @Override
         public void preStart(AfterBeanDiscovery event) {
-            event.addBean(new SimpleBean<>(clazz, Component.class, injectionPoint, this::createConfig));
+            event.addBean(new SimpleBean<>(clazz, Dependent.class, injectionPoint, this::createConfig));
         }
 
         protected Object createConfig() {
-            return Configurable.create(clazz, cd.getService());
+            Dictionary<String, Object> cfg = cd.getService();
+            return Configurable.create(clazz, cfg != null ? cfg : new Hashtable<>());
         }
     }
 

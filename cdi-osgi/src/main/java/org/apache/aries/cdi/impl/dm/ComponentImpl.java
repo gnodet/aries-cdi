@@ -789,7 +789,8 @@ public class ComponentImpl {
         
         // Now, really remove the dependency event.
         AtomicReference<E> ref = getBoundReference(dc);
-        boolean bound = e.equals(ref.get()) || (dc.isMultiple() && dc.isGreedy());
+        boolean bound = (ref.get() != null && e.getEvent() == ref.get().getEvent())
+                || (dc.isMultiple() && dc.isGreedy());
         if (bound) {
             ref.set(null);
         }

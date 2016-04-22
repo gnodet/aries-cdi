@@ -31,14 +31,12 @@ import org.apache.aries.cdi.api.Immediate;
 import org.apache.aries.cdi.api.Optional;
 import org.apache.aries.cdi.api.Service;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.osgi.framework.ServiceRegistration;
 
 public class InstanceOptionalReferenceTest extends AbstractTest {
 
     @Test
-    @Ignore
     public void test() throws Exception {
         createCdi(Hello.class);
 
@@ -62,7 +60,7 @@ public class InstanceOptionalReferenceTest extends AbstractTest {
 
         Assert.assertEquals(1, Hello.created.get());
         Assert.assertEquals(0, Hello.destroyed.get());
-        Assert.assertEquals("", Hello.instance.get().sayHelloWorld());
+        Assert.assertEquals("Hello 2 !!", Hello.instance.get().sayHelloWorld());
 
         registration2.unregister();
 

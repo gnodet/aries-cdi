@@ -24,44 +24,44 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.aries.cdi.api.Component;
 import org.apache.aries.cdi.api.Config;
+import org.apache.aries.cdi.api.Greedy;
 import org.apache.aries.cdi.api.Immediate;
 import org.apache.aries.cdi.api.Optional;
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
 
-public class OptionalConfigTest extends AbstractTest {
+public class OptionalGreedyConfigTest extends AbstractTest {
 
     @Test(timeout = 1000)
-    @Ignore
     public void test() throws Exception {
         startConfigAdmin();
         createCdi(Hello.class);
 
-        synchronized (Hello.instance) {
-            Hello.instance.wait();
-        }
-
         Assert.assertEquals(1, Hello.created.get());
         Assert.assertEquals(0, Hello.destroyed.get());
-
-        // create configuration
-        getConfiguration(MyConfig.class).update(dictionary("host", "localhost"));
-
-        Assert.assertEquals("Hello world at localhost:8234", Hello.instance.get().sayHelloWorld());
-
-        Assert.assertEquals(2, Hello.created.get());
-        Assert.assertEquals(1, Hello.destroyed.get());
-
-        // delete configuration
-        getConfiguration(MyConfig.class).delete();
+        Assert.assertNotNull(Hello.instance.get());
+        Assert.assertEquals("Hello world at 0.0.0.0:8234", Hello.instance.get().sayHelloWorld());
 
         synchronized (Hello.instance) {
-            Hello.instance.wait();
-        }
 
-        Assert.assertEquals(3, Hello.created.get());
-        Assert.assertEquals(2, Hello.destroyed.get());
+            // create configuration
+            getConfiguration(MyConfig.class).update(dictionary("host", "localhost"));
+
+            Hello.instance.wait();
+            Assert.assertEquals(1, Hello.destroyed.get());
+            Hello.instance.wait();
+            Assert.assertEquals(2, Hello.created.get());
+            Assert.assertEquals("Hello world at localhost:8234", Hello.instance.get().sayHelloWorld());
+
+            // delete configuration
+            getConfiguration(MyConfig.class).delete();
+
+            Hello.instance.wait();
+            Assert.assertEquals(2, Hello.destroyed.get());
+            Hello.instance.wait();
+            Assert.assertEquals(3, Hello.created.get());
+        }
     }
 
     @interface MyConfig {
@@ -79,7 +79,7 @@ public class OptionalConfigTest extends AbstractTest {
         static final AtomicReference<Hello> instance = new AtomicReference<>();
 
         @Inject
-        @Optional @Config
+        @Optional @Config @Greedy
         MyConfig config;
 
         @PostConstruct

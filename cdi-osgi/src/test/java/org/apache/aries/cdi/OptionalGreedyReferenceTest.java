@@ -20,6 +20,7 @@ import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import javax.inject.Inject;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.aries.cdi.api.Component;
 import org.apache.aries.cdi.api.Greedy;
@@ -27,29 +28,33 @@ import org.apache.aries.cdi.api.Immediate;
 import org.apache.aries.cdi.api.Optional;
 import org.apache.aries.cdi.api.Service;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.osgi.framework.ServiceRegistration;
 
 public class OptionalGreedyReferenceTest extends AbstractTest {
 
     @Test
-    @Ignore
     public void test() throws Exception {
         createCdi(Hello.class);
 
         Assert.assertEquals(1, Hello.created.get());
         Assert.assertEquals(0, Hello.destroyed.get());
+        Assert.assertNotNull(Hello.instance.get());
+        Assert.assertNull(Hello.instance.get().service);
 
         ServiceRegistration<MyService> registration = register(MyService.class, () -> "Hello world !!");
 
         Assert.assertEquals(2, Hello.created.get());
         Assert.assertEquals(1, Hello.destroyed.get());
+        Assert.assertNotNull(Hello.instance.get());
+        Assert.assertNotNull(Hello.instance.get().service);
 
         registration.unregister();
 
-        Assert.assertEquals(2, Hello.created.get());
+        Assert.assertEquals(3, Hello.created.get());
         Assert.assertEquals(2, Hello.destroyed.get());
+        Assert.assertNotNull(Hello.instance.get());
+        Assert.assertNull(Hello.instance.get().service);
     }
 
     public interface MyService {
@@ -63,6 +68,7 @@ public class OptionalGreedyReferenceTest extends AbstractTest {
 
         static final AtomicInteger created = new AtomicInteger();
         static final AtomicInteger destroyed = new AtomicInteger();
+        static final AtomicReference<Hello> instance = new AtomicReference<>();
 
         @Inject
         @Optional @Greedy @Service
@@ -71,12 +77,14 @@ public class OptionalGreedyReferenceTest extends AbstractTest {
         @PostConstruct
         public void init() {
             created.incrementAndGet();
+            instance.set(this);
             System.err.println("Creating Hello instance");
         }
 
         @PreDestroy
         public void destroy() {
             destroyed.incrementAndGet();
+            instance.set(null);
             System.err.println("Destroying Hello instance");
         }
 
