@@ -18,7 +18,6 @@ package org.apache.aries.cdi.impl.osgi;
 
 import javax.enterprise.context.spi.AlterableContext;
 import javax.enterprise.context.spi.Context;
-import javax.enterprise.context.spi.CreationalContext;
 import javax.enterprise.inject.spi.AfterBeanDiscovery;
 import javax.enterprise.inject.spi.Bean;
 import javax.enterprise.inject.spi.BeanManager;
@@ -54,8 +53,11 @@ public class ComponentRegistry {
         return beanManager;
     }
 
-    public void start(AfterBeanDiscovery event) {
+    public void preStart(AfterBeanDiscovery event) {
         descriptors.values().forEach(d -> d.preStart(event));
+    }
+
+    public void start() {
         descriptors.values().forEach(ComponentDescriptor::start);
     }
 

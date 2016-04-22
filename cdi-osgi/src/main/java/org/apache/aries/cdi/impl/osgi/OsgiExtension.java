@@ -17,6 +17,7 @@
 package org.apache.aries.cdi.impl.osgi;
 
 import javax.enterprise.context.ApplicationScoped;
+import javax.enterprise.context.Initialized;
 import javax.enterprise.context.spi.CreationalContext;
 import javax.enterprise.event.Observes;
 import javax.enterprise.inject.spi.AfterBeanDiscovery;
@@ -110,7 +111,11 @@ public class OsgiExtension implements Extension {
 
     public void afterBeanDiscovery(@Observes AfterBeanDiscovery event) {
         event.addContext(new ComponentContext());
-        componentRegistry.start(event);
+        componentRegistry.preStart(event);
+    }
+
+    public void applicationScopeInitialized(@Observes @Initialized(ApplicationScoped.class) Object init) {
+        componentRegistry.start();
     }
 
 }
