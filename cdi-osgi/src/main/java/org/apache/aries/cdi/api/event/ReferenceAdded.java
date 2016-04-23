@@ -14,26 +14,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.aries.cdi.api;
+package org.apache.aries.cdi.api.event;
 
 import javax.inject.Qualifier;
+import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
 import java.lang.annotation.Target;
 
-import static java.lang.annotation.ElementType.FIELD;
-import static java.lang.annotation.ElementType.METHOD;
 import static java.lang.annotation.ElementType.PARAMETER;
-import static java.lang.annotation.ElementType.TYPE;
 import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
 /**
- * Expose or retrieves a component in/from the OSGi service.
+ * The @ServiceAdded can be used to observe
+ * ServiceEvent events whenever a matching service
+ * injected via @Service is registered in the OSGi
+ * registry.
  *
- * Applies on @Component.
+ * @see ReferenceEvent
+ * @see javax.enterprise.event.Observes
  */
-@Qualifier
-@Target({METHOD, FIELD, PARAMETER, TYPE})
+@Target(PARAMETER)
 @Retention(RUNTIME)
-public @interface Service {
-
+@Documented
+@Qualifier
+public @interface ReferenceAdded {
 }

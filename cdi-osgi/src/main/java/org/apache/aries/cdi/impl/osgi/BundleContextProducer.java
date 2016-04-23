@@ -14,26 +14,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.aries.cdi.api;
+package org.apache.aries.cdi.impl.osgi;
 
-import javax.inject.Qualifier;
-import java.lang.annotation.Retention;
-import java.lang.annotation.Target;
+import javax.enterprise.context.ApplicationScoped;
+import javax.enterprise.inject.Produces;
+import javax.inject.Inject;
 
-import static java.lang.annotation.ElementType.FIELD;
-import static java.lang.annotation.ElementType.METHOD;
-import static java.lang.annotation.ElementType.PARAMETER;
-import static java.lang.annotation.ElementType.TYPE;
-import static java.lang.annotation.RetentionPolicy.RUNTIME;
+import org.osgi.framework.BundleContext;
 
-/**
- * Expose or retrieves a component in/from the OSGi service.
- *
- * Applies on @Component.
- */
-@Qualifier
-@Target({METHOD, FIELD, PARAMETER, TYPE})
-@Retention(RUNTIME)
-public @interface Service {
+@ApplicationScoped
+public class BundleContextProducer {
+
+    @Inject
+    OsgiExtension extension;
+
+    @Produces
+    BundleContext getBundleContext() {
+        return extension.getComponentRegistry().getBundleContext();
+    }
 
 }

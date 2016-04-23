@@ -28,7 +28,6 @@ import org.apache.aries.cdi.api.Greedy;
 import org.apache.aries.cdi.api.Immediate;
 import org.apache.aries.cdi.api.Optional;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 
 public class OptionalGreedyConfigTest extends AbstractTest {

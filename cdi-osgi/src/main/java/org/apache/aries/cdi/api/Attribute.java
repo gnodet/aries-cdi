@@ -21,10 +21,19 @@ import java.lang.annotation.Retention;
 
 import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
+/**
+ * Meta-annotation to define custom service attributes.
+ * Such attributes will be used when as service properties
+ * when exposing an OSGi service, or to filter those services
+ * when injecting a service.
+ */
 @Qualifier
 @Retention(RUNTIME)
 public @interface Attribute {
 
+    /**
+     * Service property name
+     */
     String value() default "";
 
 }

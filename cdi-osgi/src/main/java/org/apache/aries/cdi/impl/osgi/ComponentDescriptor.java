@@ -43,7 +43,6 @@ import org.apache.aries.cdi.api.Config;
 import org.apache.aries.cdi.api.Contract;
 import org.apache.aries.cdi.api.Contracts;
 import org.apache.aries.cdi.api.Dynamic;
-import org.apache.aries.cdi.api.Filter;
 import org.apache.aries.cdi.api.Greedy;
 import org.apache.aries.cdi.api.Immediate;
 import org.apache.aries.cdi.api.Optional;
@@ -59,6 +58,7 @@ import org.apache.aries.cdi.impl.dm.ConfigurationDependencyImpl;
 import org.apache.aries.cdi.impl.dm.Event;
 import org.apache.aries.cdi.impl.dm.ServiceDependencyImpl;
 import org.apache.aries.cdi.impl.dm.ServiceEventImpl;
+import org.apache.aries.cdi.impl.osgi.support.Filters;
 import org.apache.aries.cdi.impl.osgi.support.IterableInstance;
 import org.apache.aries.cdi.impl.osgi.support.MappingIterator;
 import org.apache.aries.cdi.impl.osgi.support.SimpleBean;
@@ -107,6 +107,8 @@ public class ComponentDescriptor {
         for (Annotation annotation : bean.getQualifiers()) {
             if (annotation instanceof Service) {
                 hasService = true;
+            } else if (annotation instanceof Contract) {
+                names.add(((Contract) annotation).value().getName());
             } else if (annotation instanceof Contracts) {
                 for (Contract ctr : ((Contracts) annotation).value()) {
                     names.add(ctr.value().getName());
@@ -256,50 +258,7 @@ public class ComponentDescriptor {
         public ReferenceDependency(InjectionPoint injectionPoint) {
             super(injectionPoint);
 
-            List<String> filters = new ArrayList<>();
-            for (Annotation annotation : injectionPoint.getAnnotated().getAnnotations()) {
-                if (annotation instanceof Filter) {
-                    String filter = ((Filter) annotation).value();
-                    if (!filter.startsWith("(") || !filter.endsWith(")")) {
-                        filter = "(" + filter + ")";
-                    }
-                    filters.add(filter);
-                } else {
-                    Class<? extends Annotation> annClass = annotation.annotationType();
-                    Attribute attr = annClass.getAnnotation(Attribute.class);
-                    if (attr != null) {
-                        String name = attr.value();
-                        Object value;
-                        try {
-                            Method[] methods = annClass.getDeclaredMethods();
-                            if (methods != null && methods.length == 1) {
-                                value = methods[0].invoke(annotation);
-                            } else {
-                                throw new IllegalArgumentException("Bad attribute " + annClass);
-                            }
-                        } catch (Throwable t) {
-                            throw new RuntimeException(t);
-                        }
-                        filters.add("(" + name + "=" + value + ")");
-                    }
-                }
-            }
-            String filter;
-            switch (filters.size()) {
-                case 0:
-                    filter = null;
-                    break;
-                case 1:
-                    filter = filters.get(0);
-                    break;
-                default:
-                    StringBuilder sb = new StringBuilder();
-                    sb.append("(&");
-                    filters.forEach(sb::append);
-                    sb.append(")");
-                    filter = sb.toString();
-                    break;
-            }
+            String filter = Filters.getFilter(injectionPoint.getAnnotated().getAnnotations());
 
             boolean optional = injectionPoint.getAnnotated().isAnnotationPresent(Optional.class);
             boolean greedy = injectionPoint.getAnnotated().isAnnotationPresent(Greedy.class);

@@ -121,6 +121,10 @@ public abstract class AbstractTest {
                 dictionary(Constants.SERVICE_RANKING, ranking));
     }
 
+    protected <T> ServiceRegistration<T> register(Class<T> clazz, T t, Dictionary<String, Object> props) {
+        return getBundleContext().registerService(clazz, t, props);
+    }
+
     protected WeldContainer createCdi(Class... classes) {
         return createCdi(UUID.randomUUID().toString(), classes);
     }

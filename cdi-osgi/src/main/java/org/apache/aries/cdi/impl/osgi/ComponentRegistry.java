@@ -36,8 +36,8 @@ public class ComponentRegistry {
     private final BeanManager beanManager;
     private final BundleContext bundleContext;
     private final Map<Bean<?>, ComponentDescriptor> descriptors = new HashMap<>();
-
     private final DependencyManager dm;
+    private boolean started;
 
     public ComponentRegistry(BeanManager beanManager, BundleContext bundleContext) {
         this.beanManager = beanManager;
@@ -58,7 +58,10 @@ public class ComponentRegistry {
     }
 
     public void start() {
-        descriptors.values().forEach(ComponentDescriptor::start);
+        if (!started) {
+            started = true;
+            descriptors.values().forEach(ComponentDescriptor::start);
+        }
     }
 
     public ComponentDescriptor addComponent(Bean<Object> component) {

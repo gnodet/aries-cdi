@@ -29,12 +29,23 @@ import javax.enterprise.inject.spi.Extension;
 import javax.enterprise.inject.spi.InjectionPoint;
 import javax.enterprise.inject.spi.ProcessBean;
 import javax.enterprise.inject.spi.ProcessInjectionTarget;
+import javax.enterprise.inject.spi.ProcessObserverMethod;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import org.apache.aries.cdi.api.Component;
 import org.apache.aries.cdi.api.Config;
 import org.apache.aries.cdi.api.Service;
+import org.apache.aries.cdi.api.event.ReferenceEvent;
 import org.apache.aries.cdi.impl.osgi.support.BundleContextHolder;
 import org.apache.aries.cdi.impl.osgi.support.DelegatingInjectionTarget;
+import org.apache.aries.cdi.impl.osgi.support.Filters;
+import org.apache.aries.cdi.impl.osgi.support.Types;
+import org.osgi.framework.Constants;
 
 @ApplicationScoped
 public class OsgiExtension implements Extension {
@@ -50,6 +61,8 @@ public class OsgiExtension implements Extension {
 
     public void beforeBeanDiscovery(@Observes BeforeBeanDiscovery event, BeanManager manager) {
         componentRegistry = new ComponentRegistry(manager, BundleContextHolder.getBundleContext());
+        event.addAnnotatedType(manager.createAnnotatedType(EventBridge.class));
+        event.addAnnotatedType(manager.createAnnotatedType(BundleContextProducer.class));
         event.addScope(Component.class, false, false);
     }
 
@@ -82,7 +95,7 @@ public class OsgiExtension implements Extension {
                 }
             }
         }
-        if (descriptor == null && event.getAnnotated().isAnnotationPresent(org.apache.aries.cdi.api.Service.class)) {
+        if (descriptor == null && event.getAnnotated().isAnnotationPresent(Service.class)) {
             descriptor = componentRegistry.addComponent(bean);
         }
     }
@@ -105,6 +118,38 @@ public class OsgiExtension implements Extension {
                 });
                 return;
             }
+        }
+    }
+
+
+    private final Set<String> observedFilters = new HashSet<>();
+    private final Set<Annotation> observedQualifiers = new HashSet<>();
+
+    public Set<String> getObservedFilters() {
+        return observedFilters;
+    }
+
+    public Set<Annotation> getObservedQualifiers() {
+        return observedQualifiers;
+    }
+
+    public <T, X> void processObserverMethod(@Observes ProcessObserverMethod<T, X> event) {
+        Set<Annotation> qualifiers = event.getObserverMethod().getObservedQualifiers();
+        if (qualifiers.contains(EventBridge.ADDED_ANNOTATION_LITERAL)
+                || qualifiers.contains(EventBridge.REMOVED_ANNOTATION_LITERAL)) {
+            List<String> filters = Filters.getSubFilters(qualifiers);
+            Type observed = event.getObserverMethod().getObservedType();
+            Class service = Types.getRawType(observed);
+            if (service == ReferenceEvent.class) {
+                service = Types.getRawType(((ParameterizedType) observed).getActualTypeArguments()[0]);
+            }
+            if (service != Object.class) {
+                String subfilter = "(" + Constants.OBJECTCLASS + "=" + service.getName() + ")";
+                filters.add(0, subfilter);
+            }
+            String filter = Filters.and(filters);
+            observedFilters.add(filter);
+            observedQualifiers.addAll(qualifiers);
         }
     }
 

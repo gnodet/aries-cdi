@@ -14,26 +14,35 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.aries.cdi.api;
+package org.apache.aries.cdi.api.event;
 
-import javax.inject.Qualifier;
-import java.lang.annotation.Retention;
-import java.lang.annotation.Target;
-
-import static java.lang.annotation.ElementType.FIELD;
-import static java.lang.annotation.ElementType.METHOD;
-import static java.lang.annotation.ElementType.PARAMETER;
-import static java.lang.annotation.ElementType.TYPE;
-import static java.lang.annotation.RetentionPolicy.RUNTIME;
+import org.osgi.framework.ServiceReference;
 
 /**
- * Expose or retrieves a component in/from the OSGi service.
+ * The event sent by the CDI extender whenever a service that matches
+ * an injection point is registered or unregistered from the OSGi
+ * registry.
  *
- * Applies on @Component.
+ * @see ReferenceAdded
+ * @see ReferenceRemoved
+ * @see javax.enterprise.event.Observes
  */
-@Qualifier
-@Target({METHOD, FIELD, PARAMETER, TYPE})
-@Retention(RUNTIME)
-public @interface Service {
+public class ReferenceEvent<T> {
+
+    private final ServiceReference<T> reference;
+    private final T service;
+
+    public ReferenceEvent(ServiceReference<T> reference, T service) {
+        this.reference = reference;
+        this.service = service;
+    }
+
+    public ServiceReference<T> getReference() {
+        return reference;
+    }
+
+    public T getService() {
+        return service;
+    }
 
 }
