@@ -39,10 +39,13 @@ public class ComponentRegistry {
     private final DependencyManager dm;
     private boolean started;
 
+    org.apache.felix.scr.impl.ComponentRegistry registry;
+
     public ComponentRegistry(BeanManager beanManager, BundleContext bundleContext) {
         this.beanManager = beanManager;
         this.bundleContext = bundleContext;
         this.dm = new DependencyManager(bundleContext);
+        this.registry = new org.apache.felix.scr.impl.ComponentRegistry();
     }
 
     public DependencyManager getDm() {
