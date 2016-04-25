@@ -36,7 +36,6 @@ import org.osgi.framework.ServiceRegistration;
 public class InstanceStaticReluctantReferenceTest extends AbstractTest {
 
     @Test
-    @Ignore
     public void test() throws Exception {
         createCdi(Hello.class);
 

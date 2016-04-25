@@ -33,32 +33,31 @@ public class MandatoryConfigTest extends AbstractTest {
     @Test(timeout = 10000)
     public void test() throws Exception {
         startConfigAdmin();
-        createCdi(Hello.class);
-
-        Assert.assertEquals(0, Hello.created.get());
-        Assert.assertEquals(0, Hello.destroyed.get());
-
-        // create configuration
-        getConfiguration(MyConfig.class).update(dictionary("host", "localhost"));
 
         synchronized (Hello.instance) {
+            createCdi(Hello.class);
+
+            Assert.assertEquals(0, Hello.created.get());
+            Assert.assertEquals(0, Hello.destroyed.get());
+
+            // create configuration
+            getConfiguration(MyConfig.class).update(dictionary("host", "localhost"));
+
             Hello.instance.wait();
-        }
 
-        Assert.assertEquals("Hello world at localhost:8234", Hello.instance.get().sayHelloWorld());
+            Assert.assertEquals("Hello world at localhost:8234", Hello.instance.get().sayHelloWorld());
 
-        Assert.assertEquals(1, Hello.created.get());
-        Assert.assertEquals(0, Hello.destroyed.get());
+            Assert.assertEquals(1, Hello.created.get());
+            Assert.assertEquals(0, Hello.destroyed.get());
 
-        // delete configuration
-        getConfiguration(MyConfig.class).delete();
+            // delete configuration
+            getConfiguration(MyConfig.class).delete();
 
-        synchronized (Hello.instance) {
             Hello.instance.wait();
-        }
 
-        Assert.assertEquals(1, Hello.created.get());
-        Assert.assertEquals(1, Hello.destroyed.get());
+            Assert.assertEquals(1, Hello.created.get());
+            Assert.assertEquals(1, Hello.destroyed.get());
+        }
     }
 
     @interface MyConfig {

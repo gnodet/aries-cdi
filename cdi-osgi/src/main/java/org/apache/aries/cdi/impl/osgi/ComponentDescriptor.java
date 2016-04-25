@@ -17,6 +17,7 @@
 package org.apache.aries.cdi.impl.osgi;
 
 import javax.enterprise.context.Dependent;
+import javax.enterprise.context.spi.AlterableContext;
 import javax.enterprise.context.spi.Context;
 import javax.enterprise.inject.Instance;
 import javax.enterprise.inject.spi.AfterBeanDiscovery;
@@ -30,9 +31,10 @@ import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
-import java.util.Dictionary;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Hashtable;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -49,63 +51,53 @@ import org.apache.aries.cdi.api.Optional;
 import org.apache.aries.cdi.api.Properties;
 import org.apache.aries.cdi.api.Property;
 import org.apache.aries.cdi.api.Service;
-import org.apache.aries.cdi.impl.dm.AbstractDependency;
-import org.apache.aries.cdi.impl.dm.ComponentDependencyImpl;
-import org.apache.aries.cdi.impl.dm.ComponentImpl;
-import org.apache.aries.cdi.impl.dm.ComponentState;
-import org.apache.aries.cdi.impl.dm.Configurable;
-import org.apache.aries.cdi.impl.dm.ConfigurationDependencyImpl;
-import org.apache.aries.cdi.impl.dm.Event;
-import org.apache.aries.cdi.impl.dm.ServiceDependencyImpl;
-import org.apache.aries.cdi.impl.dm.ServiceEventImpl;
+import org.apache.aries.cdi.impl.osgi.support.Configurable;
 import org.apache.aries.cdi.impl.osgi.support.Filters;
 import org.apache.aries.cdi.impl.osgi.support.IterableInstance;
-import org.apache.aries.cdi.impl.osgi.support.MappingIterator;
 import org.apache.aries.cdi.impl.osgi.support.SimpleBean;
-import org.osgi.framework.Bundle;
-import org.osgi.framework.ServiceFactory;
-import org.osgi.framework.ServiceRegistration;
+import org.apache.felix.scr.impl.metadata.ComponentMetadata;
+import org.apache.felix.scr.impl.metadata.DSVersion;
+import org.apache.felix.scr.impl.metadata.ReferenceMetadata;
+import org.apache.felix.scr.impl.metadata.ServiceMetadata;
+import org.osgi.service.component.ComponentContext;
 
 public class ComponentDescriptor {
 
     private final Bean<Object> bean;
     private final ComponentRegistry registry;
-    private final ComponentImpl component;
     private final Map<InjectionPoint, Dependency> dependencies = new HashMap<>();
+
+    private final ThreadLocal<ComponentContext> context = new ThreadLocal<>();
+
+    private ComponentMetadata metadata = new ComponentMetadata(DSVersion.DS13) {
+
+        private boolean m_immediate;
+
+        @Override
+        public void setImmediate(boolean immediate) {
+            m_immediate = immediate;
+        }
+
+        @Override
+        public boolean isImmediate() {
+            return m_immediate;
+        }
+
+    };
+
+    private List<Bean<?>> producers = new ArrayList<>();
 
     public ComponentDescriptor(Bean<Object> bean, ComponentRegistry registry) {
         this.bean = bean;
         this.registry = registry;
-        this.component = new ComponentImpl(registry.getBundleContext(), registry.getDm()) {
-            protected <D extends AbstractDependency<D, S, E>, S, E extends Event<S>>
-            void updateInstance(D dc, E event, boolean update, boolean add) {
-                registry.deactivate(ComponentDescriptor.this);
-                registry.activate(ComponentDescriptor.this);
-                super.updateInstance(dc, event, update, add);
-            }
 
-            @Override
-            protected Object doInstantiateComponent() {
-                return new ServiceFactory<Object>() {
-                    @Override
-                    public Object getService(Bundle bundle, ServiceRegistration registration) {
-                        BeanManager beanManager = registry.getBeanManager();
-                        Context context = beanManager.getContext(Component.class);
-                        return context.get(bean, beanManager.createCreationalContext(bean));
-                    }
-                    @Override
-                    public void ungetService(Bundle bundle, ServiceRegistration registration, Object service) {
-                        // TODO ?
-                    }
-                };
-            }
-        };
-
+        boolean immediate = false;
         boolean hasService = false;
-        List<String> names = new ArrayList<>();
-        Dictionary<String, Object> properties = new Hashtable<>();
+        Set<String> names = new HashSet<>();
         for (Annotation annotation : bean.getQualifiers()) {
-            if (annotation instanceof Service) {
+            if (annotation instanceof Immediate) {
+                immediate = true;
+            } else if (annotation instanceof Service) {
                 hasService = true;
             } else if (annotation instanceof Contract) {
                 names.add(((Contract) annotation).value().getName());
@@ -115,7 +107,7 @@ public class ComponentDescriptor {
                 }
             } else if (annotation instanceof Properties) {
                 for (Property prop : ((Properties) annotation).value()) {
-                    properties.put(prop.name(), prop.value());
+                    metadata.getProperties().put(prop.name(), prop.value());
                 }
             } else {
                 Class<? extends Annotation> annClass = annotation.annotationType();
@@ -133,11 +125,14 @@ public class ComponentDescriptor {
                     } catch (Throwable t) {
                         throw new RuntimeException(t);
                     }
-                    properties.put(name, value);
+                    metadata.getProperties().put(name, value);
                 }
             }
         }
+
+        ServiceMetadata serviceMetadata = null;
         if (hasService) {
+            serviceMetadata = new ServiceMetadata();
             if (names.isEmpty()) {
                 for (Class cl : bean.getBeanClass().getInterfaces()) {
                     names.add(cl.getName());
@@ -146,25 +141,26 @@ public class ComponentDescriptor {
             if (names.isEmpty()) {
                 names.add(bean.getBeanClass().getName());
             }
-            this.component.setInterface(names.toArray(new String[names.size()]), properties);
-        }
-    }
-
-    public Bean<Object> getBean() {
-        return bean;
-    }
-
-    public ComponentRegistry getRegistry() {
-        return registry;
-    }
-
-    public boolean isImmediate() {
-        for (Annotation anno : bean.getQualifiers()) {
-            if (anno instanceof Immediate) {
-                return true;
+            for (String name : names) {
+                serviceMetadata.addProvide(name);
             }
         }
-        return false;
+
+        String name = bean.getName();
+        if (name == null) {
+            name = bean.getBeanClass().getName();
+        }
+        metadata.setName(name);
+        metadata.setImmediate(immediate);
+        metadata.setImplementationClassName(Object.class.getName());
+        metadata.setConfigurationPolicy(ComponentMetadata.CONFIGURATION_POLICY_IGNORE);
+        metadata.getProperties().put(ComponentDescriptor.class.getName(), this);
+        metadata.getProperties().put(ComponentRegistry.class.getName(), registry);
+        metadata.setService(serviceMetadata);
+    }
+
+    public ComponentMetadata getMetadata() {
+        return metadata;
     }
 
     public void addReference(InjectionPoint ip) {
@@ -180,26 +176,35 @@ public class ComponentDescriptor {
     }
 
     public void preStart(AfterBeanDiscovery event) {
+        producers.forEach(event::addBean);
         dependencies.values().forEach(s -> s.preStart(event));
     }
 
-    public void start() {
-        component.add((c, state) -> {
-            if (state == ComponentState.TRACKING_OPTIONAL) {
-                registry.activate(ComponentDescriptor.this);
-            } else {
-                registry.deactivate(ComponentDescriptor.this);
-            }
-        });
-        getRegistry().getDm().add(component);
+    public Object activate(ComponentContext cc) {
+        this.context.set(cc);
+        try {
+            BeanManager beanManager = registry.getBeanManager();
+            Context context = beanManager.getContext(Component.class);
+            return context.get(bean, beanManager.createCreationalContext(bean));
+        } finally {
+            this.context.set(null);
+        }
+    }
+
+    public void deactivate(ComponentContext cc) {
+        this.context.set(cc);
+        try {
+            BeanManager beanManager = registry.getBeanManager();
+            AlterableContext context = (AlterableContext) beanManager.getContext(Component.class);
+            context.destroy(bean);
+        } finally {
+            this.context.set(null);
+        }
     }
 
     @Override
     public String toString() {
-        return "Component[" +
-                "bean=" + bean +
-                ", component=" + component +
-                ']';
+        return "Component[" + "bean=" + bean + ']';
     }
 
     public void inject(Object instance, InjectionPoint injectionPoint) {
@@ -246,13 +251,12 @@ public class ComponentDescriptor {
             }
         }
 
-        abstract void preStart(AfterBeanDiscovery event);
+        void preStart(AfterBeanDiscovery event) {
+        }
 
     }
 
     public class ReferenceDependency extends Dependency {
-
-        protected final ServiceDependencyImpl<Object> sd;
 
         public ReferenceDependency(InjectionPoint injectionPoint) {
             super(injectionPoint);
@@ -263,34 +267,41 @@ public class ComponentDescriptor {
             boolean greedy = injectionPoint.getAnnotated().isAnnotationPresent(Greedy.class);
             boolean dynamic = injectionPoint.getAnnotated().isAnnotationPresent(Dynamic.class);
             boolean multiple = isInstance;
-            sd = new ServiceDependencyImpl<>()
-                    .setRequired(!optional)
-                    .setGreedy(greedy)
-                    .setDynamic(dynamic)
-                    .setMultiple(multiple)
-                    .setService(clazz, filter);
-            component.add(sd);
-        }
 
-        @Override
-        public void preStart(AfterBeanDiscovery event) {
-            event.addBean(new SimpleBean<>(clazz, Dependent.class, injectionPoint, this::getService));
+            ReferenceMetadata reference = new ReferenceMetadata();
+            reference.setName(injectionPoint.toString());
+            reference.setInterface(clazz.getName());
+            reference.setTarget(filter);
+            reference.setCardinality(optional ? multiple ? "0..n" : "0..1" : multiple ? "1..n" : "1..1");
+            reference.setPolicy(dynamic ? "dynamic" : "static");
+            reference.setPolicyOption(greedy ? "greedy" : "reluctant");
+            metadata.addDependency(reference);
+
+            producers.add(new SimpleBean<>(clazz, Dependent.class, injectionPoint, this::getService));
         }
 
         protected Object getService() {
+            ComponentContext cc = context.get();
             if (isInstance) {
-                Iterable<Object> iterable = () -> new MappingIterator<>(
-                        component.getDependencyEvents(sd).iterator(),
-                        this::getService
-                );
+                Iterable<Object> iterable = () -> new Iterator<Object>() {
+                    final Object[] services = cc.locateServices(injectionPoint.toString());
+                    int idx;
+                    @Override
+                    public boolean hasNext() {
+                        return services != null && idx < services.length;
+                    }
+
+                    @Override
+                    public Object next() {
+                        return services[idx++];
+                    }
+                };
                 return new IterableInstance<>(iterable);
+            } else {
+                return cc.locateService(injectionPoint.toString());
             }
-            return sd.getService();
         }
 
-        protected <T> T getService(ServiceEventImpl<T> event) {
-            return getRegistry().getBundleContext().getService(event.getReference());
-        }
     }
 
     public class ComponentDependency extends Dependency {
@@ -306,18 +317,16 @@ public class ComponentDescriptor {
         public void preStart(AfterBeanDiscovery event) {
             Set<Annotation> qualifiersSet = injectionPoint.getQualifiers();
             Annotation[] qualifiers = qualifiersSet.toArray(new Annotation[qualifiersSet.size()]);
-            ComponentDescriptor resolved = getRegistry().resolve(injectionPoint.getType(), qualifiers);
+            ComponentDescriptor resolved = registry.resolve(injectionPoint.getType(), qualifiers);
 
-            ComponentDependencyImpl cd = new ComponentDependencyImpl()
-                    .setComponent(resolved.component);
-            component.add(cd);
+//            ComponentDependencyImpl cd = new ComponentDependencyImpl()
+//                    .setComponent(resolved.component);
+//            component.add(cd);
         }
 
     }
 
     public class ConfigDependency extends Dependency {
-
-        protected final ConfigurationDependencyImpl cd;
 
         public ConfigDependency(InjectionPoint injectionPoint) {
             super(injectionPoint);
@@ -334,21 +343,16 @@ public class ComponentDescriptor {
             boolean greedy = injectionPoint.getAnnotated().isAnnotationPresent(Greedy.class);
             boolean dynamic = injectionPoint.getAnnotated().isAnnotationPresent(Dynamic.class);
 
-            cd = new ConfigurationDependencyImpl()
-                    .setPid(pid)
-                    .setRequired(!optional)
-                    .setGreedy(greedy)
-                    .setDynamic(dynamic);
-            component.add(cd);
+            metadata.setConfigurationPolicy(optional ? ComponentMetadata.CONFIGURATION_POLICY_OPTIONAL : ComponentMetadata.CONFIGURATION_POLICY_REQUIRE);
+            metadata.setConfigurationPid(new String[]{ pid });
+
+            producers.add(new SimpleBean<>(clazz, Dependent.class, injectionPoint, this::createConfig));
         }
 
-        @Override
-        public void preStart(AfterBeanDiscovery event) {
-            event.addBean(new SimpleBean<>(clazz, Dependent.class, injectionPoint, this::createConfig));
-        }
-
+        @SuppressWarnings("unchecked")
         protected Object createConfig() {
-            Dictionary<String, Object> cfg = cd.getService();
+            ComponentContext cc = context.get();
+            Map<String, Object> cfg = (Map) cc.getProperties();
             return Configurable.create(clazz, cfg != null ? cfg : new Hashtable<>());
         }
     }

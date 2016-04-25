@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.aries.cdi.impl.dm;
+package org.apache.aries.cdi.impl.osgi.support;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.GenericArrayType;

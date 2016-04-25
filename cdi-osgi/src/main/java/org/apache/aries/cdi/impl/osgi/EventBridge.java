@@ -99,17 +99,21 @@ public class EventBridge implements ServiceListener {
     }
 
     @PostConstruct
-    public void init() throws InvalidSyntaxException {
+    public void init() {
         filter = Filters.or(extension.getObservedFilters());
         if (filter != null) {
-            filters = new HashMap<>();
-            for (Annotation annotation : extension.getObservedQualifiers()) {
-                String flt = Filters.getFilter(Collections.singleton(annotation));
-                if (flt != null) {
-                    filters.put(annotation, bundleContext.createFilter(flt));
+            try {
+                filters = new HashMap<>();
+                for (Annotation annotation : extension.getObservedQualifiers()) {
+                    String flt = Filters.getFilter(Collections.singleton(annotation));
+                    if (flt != null) {
+                        filters.put(annotation, bundleContext.createFilter(flt));
+                    }
                 }
+                bundleContext.addServiceListener(this, filter);
+            } catch (InvalidSyntaxException e) {
+                throw new RuntimeException(e);
             }
-            bundleContext.addServiceListener(this, filter);
         }
     }
 

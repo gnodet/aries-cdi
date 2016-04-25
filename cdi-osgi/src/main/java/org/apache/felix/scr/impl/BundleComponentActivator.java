@@ -836,12 +836,12 @@ public class BundleComponentActivator implements ComponentActivator
         }
     }
 
-    public void missingServicePresent(ServiceReference<?> serviceReference)
+    public <T> void missingServicePresent(ServiceReference<T> serviceReference)
     {
         m_componentRegistry.missingServicePresent(serviceReference, m_componentActor);
     }
 
-    public <T> void registerMissingDependency(DependencyManager<?, T> dependencyManager,
+    public <S, T> void registerMissingDependency(DependencyManager<S, T> dependencyManager,
         ServiceReference<T> serviceReference, int trackingCount)
     {
         m_componentRegistry.registerMissingDependency(dependencyManager,

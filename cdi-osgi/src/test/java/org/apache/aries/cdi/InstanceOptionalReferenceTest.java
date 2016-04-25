@@ -27,6 +27,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.aries.cdi.api.Component;
+import org.apache.aries.cdi.api.Dynamic;
+import org.apache.aries.cdi.api.Greedy;
 import org.apache.aries.cdi.api.Immediate;
 import org.apache.aries.cdi.api.Optional;
 import org.apache.aries.cdi.api.Service;
@@ -82,7 +84,7 @@ public class InstanceOptionalReferenceTest extends AbstractTest {
         static final AtomicInteger destroyed = new AtomicInteger();
         static final AtomicReference<Hello> instance = new AtomicReference<>();
 
-        @Inject @Optional @Service
+        @Inject @Optional @Service @Greedy @Dynamic
         Instance<MyService> service;
 
         @PostConstruct
