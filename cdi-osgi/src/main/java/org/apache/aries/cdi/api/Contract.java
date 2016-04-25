@@ -23,6 +23,8 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
 /**
  * Defines a class under which an OSGi service should be exposed.
+ *
+ * TODO: use it when importing services too
  */
 @Qualifier
 @Retention(RUNTIME)

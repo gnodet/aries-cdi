@@ -30,7 +30,7 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  * Means that the bean will be activated even if no service dependency matches.
  * A null object will be injected, unless the component is @Dynamic.
  *
- * Applies on @Reference.
+ * Applies on @Service or @Config injection points.
  */
 @Qualifier
 @Target({METHOD, FIELD, PARAMETER, TYPE})

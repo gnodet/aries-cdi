@@ -232,7 +232,6 @@ public class ComponentDescriptor {
                 Type raw = ((ParameterizedType) type).getRawType();
                 if (raw == Instance.class) {
                     isInstance = true;
-                    Type tp = ((ParameterizedType) type).getActualTypeArguments()[0];
                     clazz = (Class) ((ParameterizedType) type).getActualTypeArguments()[0];
                 } else {
                     isInstance = false;
