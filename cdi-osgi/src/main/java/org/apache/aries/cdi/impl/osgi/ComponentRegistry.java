@@ -19,10 +19,8 @@ package org.apache.aries.cdi.impl.osgi;
 import javax.enterprise.inject.spi.AfterBeanDiscovery;
 import javax.enterprise.inject.spi.Bean;
 import javax.enterprise.inject.spi.BeanManager;
-import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.lang.reflect.Type;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -50,7 +48,6 @@ import org.apache.felix.scr.impl.config.TargetedPID;
 import org.apache.felix.scr.impl.helper.ComponentMethods;
 import org.apache.felix.scr.impl.manager.AbstractComponentManager;
 import org.apache.felix.scr.impl.manager.ComponentContextImpl;
-import org.apache.felix.scr.impl.manager.ComponentFactoryImpl;
 import org.apache.felix.scr.impl.manager.DependencyManager;
 import org.apache.felix.scr.impl.manager.ExtendedServiceEvent;
 import org.apache.felix.scr.impl.manager.ExtendedServiceListener;
@@ -83,9 +80,19 @@ public class ComponentRegistry implements ComponentActivator {
     private final Map<String, Set<ComponentHolder<?>>> holdersByPid = new HashMap<>();
     ConfigAdminTracker configAdminTracker;
 
+    private final AtomicBoolean m_active = new AtomicBoolean(false);
+    private final ScrConfiguration m_configuration = new ScrConfiguration(null);
+    private final Map<String, ListenerInfo> listenerMap = new HashMap<>();
+    private final Map<ExtendedServiceListener, ServiceListener> privateListeners = new HashMap<>();
+    private final AtomicInteger componentId = new AtomicInteger();
+    private final Map<ServiceReference<?>, List<Entry>> m_missingDependencies = new HashMap<>();
+    private final ConcurrentMap<Long, RegionConfigurationSupport> bundleToRcsMap = new ConcurrentHashMap<>();
+    private final Executor m_componentActor = Executors.newSingleThreadExecutor();
+
+
     public ComponentRegistry(BeanManager beanManager, BundleContext bundleContext) {
         this.beanManager = beanManager;
-        this.bundleContext = bundleContext;
+        this.bundleContext = new PrivateRegistryWrapper(bundleContext);
     }
 
     public BeanManager getBeanManager() {
@@ -100,9 +107,8 @@ public class ComponentRegistry implements ComponentActivator {
         if (m_active.compareAndSet(false, true)) {
 
             for (ComponentDescriptor d : descriptors.values()) {
-                ComponentMetadata metadata = d.getMetadata();
-                metadata.validate(this);
-                ComponentHolder<?> h = new CdiComponentHolder<>(this, metadata);
+                d.validate(this);
+                ComponentHolder<?> h = new CdiComponentHolder<>(this, d);
                 holders.add(h);
             }
 
@@ -154,33 +160,6 @@ public class ComponentRegistry implements ComponentActivator {
     public ComponentDescriptor getDescriptor(Bean<?> component) {
         return descriptors.get(component);
     }
-
-    public ComponentDescriptor getDescriptor(ComponentMetadata componentMetadata) {
-        for (ComponentDescriptor descriptor : descriptors.values()) {
-            if (descriptor.getMetadata() == componentMetadata) {
-                return descriptor;
-            }
-        }
-        return null;
-    }
-
-    public ComponentDescriptor resolve(Type type, Annotation[] qualifiers) {
-        Bean<?> resolved = beanManager.resolve(beanManager.getBeans(type, qualifiers));
-        ComponentDescriptor desc = descriptors.get(resolved);
-        if (desc == null) {
-            throw new IllegalStateException("Unable to find component descriptor for " + resolved);
-        }
-        return desc;
-    }
-
-    private final AtomicBoolean m_active = new AtomicBoolean(false);
-    private final ScrConfiguration m_configuration = new ScrConfiguration(null);
-    private final Map<String, ListenerInfo> listenerMap = new HashMap<>();
-    private final AtomicInteger componentId = new AtomicInteger();
-    private final Map<ServiceReference<?>, List<Entry>> m_missingDependencies = new HashMap<>();
-    private final ConcurrentMap<Long, RegionConfigurationSupport> bundleToRcsMap = new ConcurrentHashMap<>();
-
-    private final Executor m_componentActor = Executors.newSingleThreadExecutor();
 
     @Override
     public boolean isActive() {
@@ -307,6 +286,19 @@ public class ComponentRegistry implements ComponentActivator {
 
     public void addServiceListener(String classNameFilter, Filter eventFilter,
                                    ExtendedServiceListener<ExtendedServiceEvent> listener) {
+        if (eventFilter != null && eventFilter.toString().contains(PrivateRegistryWrapper.PRIVATE)) {
+            synchronized (privateListeners) {
+                ServiceListener l = event -> listener.serviceChanged(new ExtendedServiceEvent(event));
+                privateListeners.put(listener, l);
+                try {
+                    bundleContext.addServiceListener(l, "(&" + classNameFilter + eventFilter.toString() + ")");
+                } catch (InvalidSyntaxException e) {
+                    throw (IllegalArgumentException) new IllegalArgumentException(
+                            "invalid class name filter").initCause(e);
+                }
+            }
+            return;
+        }
         ListenerInfo listenerInfo;
         synchronized (listenerMap) {
             log(LogService.LOG_DEBUG, "classNameFilter: " + classNameFilter
@@ -328,6 +320,12 @@ public class ComponentRegistry implements ComponentActivator {
 
     public void removeServiceListener(String className, Filter filter,
                                       ExtendedServiceListener<ExtendedServiceEvent> listener) {
+        if (filter != null && filter.toString().contains(PrivateRegistryWrapper.PRIVATE)) {
+            synchronized (privateListeners) {
+                ServiceListener l = privateListeners.remove(listener);
+                bundleContext.removeServiceListener(l);
+            }
+        }
         synchronized (listenerMap) {
             ListenerInfo listenerInfo = listenerMap.get(className);
             if (listenerInfo != null) {
@@ -512,8 +510,7 @@ public class ComponentRegistry implements ComponentActivator {
 
         @Override
         protected S createImplementationObject(Bundle usingBundle, SetImplementationObject<S> setter, ComponentContextImpl<S> componentContext) {
-            ComponentRegistry registry = (ComponentRegistry) getActivator();
-            ComponentDescriptor descriptor = registry.getDescriptor(getComponentMetadata());
+            ComponentDescriptor descriptor = (ComponentDescriptor) getComponentMetadata();
             S s = (S) descriptor.activate(componentContext);
 
             setter.presetComponentContext(componentContext);
@@ -538,10 +535,10 @@ public class ComponentRegistry implements ComponentActivator {
 
         @Override
         protected void disposeImplementationObject(ComponentContextImpl<S> componentContext, int reason) {
-            ComponentRegistry registry = (ComponentRegistry) getActivator();
-            ComponentDescriptor descriptor = registry.getDescriptor(getComponentMetadata());
+            ComponentDescriptor descriptor = (ComponentDescriptor) getComponentMetadata();
             descriptor.deactivate(componentContext);
         }
+
     }
 
 }

@@ -25,14 +25,12 @@ import org.apache.aries.cdi.api.Component;
 import org.apache.aries.cdi.api.Immediate;
 import org.apache.aries.cdi.api.Service;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.osgi.framework.ServiceRegistration;
 
 public class MandatoryIndirectReferenceTest extends AbstractTest {
 
     @Test
-    @Ignore
     public void test() throws Exception {
         createCdi(Hello.class, Middle.class);
 

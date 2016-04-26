@@ -38,6 +38,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import org.apache.aries.cdi.api.Attribute;
 import org.apache.aries.cdi.api.Component;
@@ -61,33 +62,18 @@ import org.apache.felix.scr.impl.metadata.ReferenceMetadata;
 import org.apache.felix.scr.impl.metadata.ServiceMetadata;
 import org.osgi.service.component.ComponentContext;
 
-public class ComponentDescriptor {
+public class ComponentDescriptor extends ComponentMetadata {
 
     private final Bean<Object> bean;
     private final ComponentRegistry registry;
-    private final Map<InjectionPoint, Dependency> dependencies = new HashMap<>();
-
+    private final Map<InjectionPoint, Supplier<Object>> instanceSuppliers = new HashMap<>();
     private final ThreadLocal<ComponentContext> context = new ThreadLocal<>();
+    private final List<Bean<?>> producers = new ArrayList<>();
 
-    private ComponentMetadata metadata = new ComponentMetadata(DSVersion.DS13) {
-
-        private boolean m_immediate;
-
-        @Override
-        public void setImmediate(boolean immediate) {
-            m_immediate = immediate;
-        }
-
-        @Override
-        public boolean isImmediate() {
-            return m_immediate;
-        }
-
-    };
-
-    private List<Bean<?>> producers = new ArrayList<>();
+    private boolean m_immediate;
 
     public ComponentDescriptor(Bean<Object> bean, ComponentRegistry registry) {
+        super(DSVersion.DS13);
         this.bean = bean;
         this.registry = registry;
 
@@ -107,7 +93,7 @@ public class ComponentDescriptor {
                 }
             } else if (annotation instanceof Properties) {
                 for (Property prop : ((Properties) annotation).value()) {
-                    metadata.getProperties().put(prop.name(), prop.value());
+                    getProperties().put(prop.name(), prop.value());
                 }
             } else {
                 Class<? extends Annotation> annClass = annotation.annotationType();
@@ -125,14 +111,13 @@ public class ComponentDescriptor {
                     } catch (Throwable t) {
                         throw new RuntimeException(t);
                     }
-                    metadata.getProperties().put(name, value);
+                    getProperties().put(name, value);
                 }
             }
         }
 
-        ServiceMetadata serviceMetadata = null;
+        ServiceMetadata serviceMetadata = new ServiceMetadata();
         if (hasService) {
-            serviceMetadata = new ServiceMetadata();
             if (names.isEmpty()) {
                 for (Class cl : bean.getBeanClass().getInterfaces()) {
                     names.add(cl.getName());
@@ -144,40 +129,137 @@ public class ComponentDescriptor {
             for (String name : names) {
                 serviceMetadata.addProvide(name);
             }
+        } else {
+            addAllClasses(serviceMetadata, bean.getBeanClass());
+            getProperties().put(PrivateRegistryWrapper.PRIVATE, true);
         }
 
         String name = bean.getName();
         if (name == null) {
             name = bean.getBeanClass().getName();
         }
-        metadata.setName(name);
-        metadata.setImmediate(immediate);
-        metadata.setImplementationClassName(Object.class.getName());
-        metadata.setConfigurationPolicy(ComponentMetadata.CONFIGURATION_POLICY_IGNORE);
-        metadata.getProperties().put(ComponentDescriptor.class.getName(), this);
-        metadata.getProperties().put(ComponentRegistry.class.getName(), registry);
-        metadata.setService(serviceMetadata);
+        setName(name);
+        setImmediate(immediate);
+        setImplementationClassName(Object.class.getName());
+        setConfigurationPolicy(ComponentMetadata.CONFIGURATION_POLICY_IGNORE);
+        getProperties().put(ComponentDescriptor.class.getName(), this);
+        getProperties().put(ComponentRegistry.class.getName(), registry);
+        setService(serviceMetadata);
     }
 
-    public ComponentMetadata getMetadata() {
-        return metadata;
+    private void addAllClasses(ServiceMetadata serviceMetadata, Class<?> beanClass) {
+        serviceMetadata.addProvide(beanClass.getName());
+        for (Class<?> itf : beanClass.getInterfaces()) {
+            addAllClasses(serviceMetadata, itf);
+        }
+        if (beanClass != Object.class) {
+            addAllClasses(serviceMetadata, beanClass.getSuperclass());
+        }
     }
 
-    public void addReference(InjectionPoint ip) {
-        dependencies.put(ip, new ReferenceDependency(ip));
+    public void addInjectionPoint(InjectionPoint injectionPoint) {
+        Service   ref = injectionPoint.getAnnotated().getAnnotation(Service.class);
+        Component cmp = injectionPoint.getAnnotated().getAnnotation(Component.class);
+        Config    cfg = injectionPoint.getAnnotated().getAnnotation(Config.class);
+
+        Type type = injectionPoint.getType();
+        Class clazz;
+        boolean multiple;
+        if (type instanceof ParameterizedType) {
+            Type raw = ((ParameterizedType) type).getRawType();
+            if (raw == Instance.class) {
+                multiple = true;
+                clazz = (Class) ((ParameterizedType) type).getActualTypeArguments()[0];
+            } else {
+                multiple = false;
+                clazz = (Class) ((ParameterizedType) type).getRawType();
+            }
+        } else {
+            if (type == Instance.class) {
+                throw new IllegalArgumentException();
+            }
+            multiple = false;
+            clazz = (Class) type;
+        }
+
+        if (cfg != null) {
+            if (ref != null) {
+                throw new IllegalArgumentException("Only one of @Service or @Config can be set on injection point");
+            }
+            if (multiple) {
+                throw new IllegalArgumentException("Illegal use of Instance<?> on configuration: " + clazz.getName());
+            }
+            if (!clazz.isAnnotation()) {
+                throw new IllegalArgumentException("Configuration class should be an annotation: " + clazz.getName());
+            }
+            Config config = injectionPoint.getAnnotated().getAnnotation(Config.class);
+            String pid = config.pid().isEmpty() ? clazz.getName() : config.pid();
+            boolean optional = injectionPoint.getAnnotated().isAnnotationPresent(Optional.class);
+            boolean greedy = injectionPoint.getAnnotated().isAnnotationPresent(Greedy.class);
+            boolean dynamic = injectionPoint.getAnnotated().isAnnotationPresent(Dynamic.class);
+
+            setConfigurationPolicy(optional ? ComponentMetadata.CONFIGURATION_POLICY_OPTIONAL : ComponentMetadata.CONFIGURATION_POLICY_REQUIRE);
+            setConfigurationPid(new String[]{ pid });
+
+            producers.add(new SimpleBean<>(clazz, Dependent.class, injectionPoint, () -> createConfig(clazz)));
+        }
+        else {
+            List<String> subFilters = Filters.getSubFilters(injectionPoint.getAnnotated().getAnnotations());
+            if (ref == null) {
+                subFilters.add("(" + PrivateRegistryWrapper.PRIVATE + "=true)");
+            }
+            String filter = Filters.and(subFilters);
+
+            boolean optional = injectionPoint.getAnnotated().isAnnotationPresent(Optional.class);
+            boolean greedy = injectionPoint.getAnnotated().isAnnotationPresent(Greedy.class);
+            boolean dynamic = injectionPoint.getAnnotated().isAnnotationPresent(Dynamic.class);
+
+            ReferenceMetadata reference = new ReferenceMetadata();
+            reference.setName(injectionPoint.toString());
+            reference.setInterface(clazz.getName());
+            reference.setTarget(filter);
+            reference.setCardinality(optional ? multiple ? "0..n" : "0..1" : multiple ? "1..n" : "1..1");
+            reference.setPolicy(dynamic ? "dynamic" : "static");
+            reference.setPolicyOption(greedy ? "greedy" : "reluctant");
+            addDependency(reference);
+
+            Supplier<Object> supplier = () -> getService(injectionPoint, multiple);
+            producers.add(new SimpleBean<>(clazz, Dependent.class, injectionPoint, supplier));
+            instanceSuppliers.put(injectionPoint, supplier);
+        }
     }
 
-    public void addDependency(InjectionPoint ip) {
-        dependencies.put(ip, new ComponentDependency(ip));
+    @SuppressWarnings("unchecked")
+    protected Object createConfig(Class<?> clazz) {
+        ComponentContext cc = context.get();
+        Map<String, Object> cfg = (Map) cc.getProperties();
+        return Configurable.create(clazz, cfg != null ? cfg : new Hashtable<>());
     }
 
-    public void addConfig(InjectionPoint ip) {
-        dependencies.put(ip, new ConfigDependency(ip));
+    protected Object getService(InjectionPoint injectionPoint, boolean isInstance) {
+        ComponentContext cc = context.get();
+        if (isInstance) {
+            Iterable<Object> iterable = () -> new Iterator<Object>() {
+                final Object[] services = cc.locateServices(injectionPoint.toString());
+                int idx;
+                @Override
+                public boolean hasNext() {
+                    return services != null && idx < services.length;
+                }
+
+                @Override
+                public Object next() {
+                    return services[idx++];
+                }
+            };
+            return new IterableInstance<>(iterable);
+        } else {
+            return cc.locateService(injectionPoint.toString());
+        }
     }
 
     public void preStart(AfterBeanDiscovery event) {
         producers.forEach(event::addBean);
-        dependencies.values().forEach(s -> s.preStart(event));
     }
 
     public Object activate(ComponentContext cc) {
@@ -202,159 +284,33 @@ public class ComponentDescriptor {
         }
     }
 
+    public void inject(Object instance, InjectionPoint injectionPoint) {
+        Supplier<Object> supplier = instanceSuppliers.get(injectionPoint);
+        if (supplier != null) {
+            Field field = ((AnnotatedField) injectionPoint.getAnnotated()).getJavaMember();
+            field.setAccessible(true);
+            try {
+                field.set(instance, supplier.get());
+            }
+            catch (IllegalAccessException exc) {
+                throw new RuntimeException(exc);
+            }
+        }
+    }
+
+    @Override
+    public void setImmediate(boolean immediate) {
+        m_immediate = immediate;
+    }
+
+    @Override
+    public boolean isImmediate() {
+        return m_immediate;
+    }
+
     @Override
     public String toString() {
         return "Component[" + "bean=" + bean + ']';
-    }
-
-    public void inject(Object instance, InjectionPoint injectionPoint) {
-        Dependency dependency = dependencies.get(injectionPoint);
-        if (dependency instanceof ReferenceDependency) {
-            ReferenceDependency ref = (ReferenceDependency) dependency;
-            if (ref.injectionPoint == injectionPoint && ref.isInstance) {
-                Field field = ((AnnotatedField) injectionPoint.getAnnotated()).getJavaMember();
-                field.setAccessible(true);
-                try {
-                    field.set(instance, ref.getService());
-                }
-                catch (IllegalAccessException exc) {
-                    throw new RuntimeException(exc);
-                }
-            }
-        }
-    }
-
-    public abstract class Dependency {
-
-        protected final InjectionPoint injectionPoint;
-        protected final Class<?> clazz;
-        protected final boolean isInstance;
-
-        public Dependency(InjectionPoint injectionPoint) {
-            this.injectionPoint = injectionPoint;
-            Type type = injectionPoint.getType();
-            if (type instanceof ParameterizedType) {
-                Type raw = ((ParameterizedType) type).getRawType();
-                if (raw == Instance.class) {
-                    isInstance = true;
-                    clazz = (Class) ((ParameterizedType) type).getActualTypeArguments()[0];
-                } else {
-                    isInstance = false;
-                    clazz = (Class) ((ParameterizedType) type).getRawType();
-                }
-            } else {
-                if (type == Instance.class) {
-                    throw new IllegalArgumentException();
-                }
-                isInstance = false;
-                clazz = (Class) type;
-            }
-        }
-
-        void preStart(AfterBeanDiscovery event) {
-        }
-
-    }
-
-    public class ReferenceDependency extends Dependency {
-
-        public ReferenceDependency(InjectionPoint injectionPoint) {
-            super(injectionPoint);
-
-            String filter = Filters.getFilter(injectionPoint.getAnnotated().getAnnotations());
-
-            boolean optional = injectionPoint.getAnnotated().isAnnotationPresent(Optional.class);
-            boolean greedy = injectionPoint.getAnnotated().isAnnotationPresent(Greedy.class);
-            boolean dynamic = injectionPoint.getAnnotated().isAnnotationPresent(Dynamic.class);
-            boolean multiple = isInstance;
-
-            ReferenceMetadata reference = new ReferenceMetadata();
-            reference.setName(injectionPoint.toString());
-            reference.setInterface(clazz.getName());
-            reference.setTarget(filter);
-            reference.setCardinality(optional ? multiple ? "0..n" : "0..1" : multiple ? "1..n" : "1..1");
-            reference.setPolicy(dynamic ? "dynamic" : "static");
-            reference.setPolicyOption(greedy ? "greedy" : "reluctant");
-            metadata.addDependency(reference);
-
-            producers.add(new SimpleBean<>(clazz, Dependent.class, injectionPoint, this::getService));
-        }
-
-        protected Object getService() {
-            ComponentContext cc = context.get();
-            if (isInstance) {
-                Iterable<Object> iterable = () -> new Iterator<Object>() {
-                    final Object[] services = cc.locateServices(injectionPoint.toString());
-                    int idx;
-                    @Override
-                    public boolean hasNext() {
-                        return services != null && idx < services.length;
-                    }
-
-                    @Override
-                    public Object next() {
-                        return services[idx++];
-                    }
-                };
-                return new IterableInstance<>(iterable);
-            } else {
-                return cc.locateService(injectionPoint.toString());
-            }
-        }
-
-    }
-
-    public class ComponentDependency extends Dependency {
-
-        public ComponentDependency(InjectionPoint injectionPoint) {
-            super(injectionPoint);
-            if (isInstance) {
-                throw new IllegalArgumentException("Illegal use of Instance<?> on component: " + clazz.getName());
-            }
-        }
-
-        @Override
-        public void preStart(AfterBeanDiscovery event) {
-            Set<Annotation> qualifiersSet = injectionPoint.getQualifiers();
-            Annotation[] qualifiers = qualifiersSet.toArray(new Annotation[qualifiersSet.size()]);
-            ComponentDescriptor resolved = registry.resolve(injectionPoint.getType(), qualifiers);
-
-//            ComponentDependencyImpl cd = new ComponentDependencyImpl()
-//                    .setComponent(resolved.component);
-//            component.add(cd);
-        }
-
-    }
-
-    public class ConfigDependency extends Dependency {
-
-        public ConfigDependency(InjectionPoint injectionPoint) {
-            super(injectionPoint);
-            if (isInstance) {
-                throw new IllegalArgumentException("Illegal use of Instance<?> on configuration: " + clazz.getName());
-            }
-            if (!clazz.isAnnotation()) {
-                throw new IllegalArgumentException("Configuration class should be an annotation: " + clazz.getName());
-            }
-
-            Config config = injectionPoint.getAnnotated().getAnnotation(Config.class);
-            String pid = config.pid().isEmpty() ? clazz.getName() : config.pid();
-            boolean optional = injectionPoint.getAnnotated().isAnnotationPresent(Optional.class);
-            boolean greedy = injectionPoint.getAnnotated().isAnnotationPresent(Greedy.class);
-            boolean dynamic = injectionPoint.getAnnotated().isAnnotationPresent(Dynamic.class);
-
-            metadata.setConfigurationPolicy(optional ? ComponentMetadata.CONFIGURATION_POLICY_OPTIONAL : ComponentMetadata.CONFIGURATION_POLICY_REQUIRE);
-            metadata.setConfigurationPid(new String[]{ pid });
-
-            producers.add(new SimpleBean<>(clazz, Dependent.class, injectionPoint, this::createConfig));
-        }
-
-        @SuppressWarnings("unchecked")
-        protected Object createConfig() {
-            ComponentContext cc = context.get();
-            Map<String, Object> cfg = (Map) cc.getProperties();
-            return Configurable.create(clazz, cfg != null ? cfg : new Hashtable<>());
-        }
     }
 
 }

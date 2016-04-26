@@ -28,8 +28,10 @@ import javax.enterprise.inject.spi.BeforeBeanDiscovery;
 import javax.enterprise.inject.spi.Extension;
 import javax.enterprise.inject.spi.InjectionPoint;
 import javax.enterprise.inject.spi.ProcessBean;
+import javax.enterprise.inject.spi.ProcessInjectionPoint;
 import javax.enterprise.inject.spi.ProcessInjectionTarget;
 import javax.enterprise.inject.spi.ProcessObserverMethod;
+import javax.enterprise.util.AnnotationLiteral;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -42,6 +44,7 @@ import org.apache.aries.cdi.api.Config;
 import org.apache.aries.cdi.api.Service;
 import org.apache.aries.cdi.api.event.ReferenceEvent;
 import org.apache.aries.cdi.impl.osgi.support.BundleContextHolder;
+import org.apache.aries.cdi.impl.osgi.support.DelegatingInjectionPoint;
 import org.apache.aries.cdi.impl.osgi.support.DelegatingInjectionTarget;
 import org.apache.aries.cdi.impl.osgi.support.Filters;
 import org.apache.aries.cdi.impl.osgi.support.Types;
@@ -71,32 +74,38 @@ public class OsgiExtension implements Extension {
         Bean<Object> bean = (Bean) event.getBean();
         ComponentDescriptor descriptor = null;
         for (InjectionPoint ip : event.getBean().getInjectionPoints()) {
-            Service ref = ip.getAnnotated().getAnnotation(Service.class);
-            Component cmp = ip.getAnnotated().getAnnotation(Component.class);
-            Config    cfg = ip.getAnnotated().getAnnotation(Config.class);
-            if (ref != null || cmp != null || cfg != null) {
+            if (ip.getAnnotated().isAnnotationPresent(Service.class)
+                    || ip.getAnnotated().isAnnotationPresent(Component.class)
+                    || ip.getAnnotated().isAnnotationPresent(Config.class)) {
                 if (bean.getScope() != Component.class) {
-                    throw new IllegalArgumentException("Beans with @Reference, @Component or @Config injection points should be annotated with @Component");
-                }
-                if (descriptor == null) {
-                    descriptor = componentRegistry.addComponent(bean);
-                }
-                if ((ref != null ? 1 : 0) + (cmp != null ? 1 : 0) + (cfg != null ? 1 : 0) > 1) {
-                    throw new IllegalArgumentException("Only one of @Reference, @Component or @Config can be set on injection point");
-                }
-                if (ref != null) {
-                    descriptor.addReference(ip);
-                }
-                if (cmp != null) {
-                    descriptor.addDependency(ip);
-                }
-                if (cfg != null) {
-                    descriptor.addConfig(ip);
+                    event.addDefinitionError(new IllegalArgumentException(
+                            "Beans with @Service, @Component or @Config injection points " +
+                                    "should be annotated with @Component"));
+                } else {
+                    if (descriptor == null) {
+                        descriptor = componentRegistry.addComponent(bean);
+                    }
+                    try {
+                        descriptor.addInjectionPoint(ip);
+                    } catch (IllegalStateException e) {
+                        event.addDefinitionError(e);
+                    }
                 }
             }
         }
         if (descriptor == null && event.getAnnotated().isAnnotationPresent(Service.class)) {
             descriptor = componentRegistry.addComponent(bean);
+        }
+    }
+    public <T, X> void processInjectionPoint(@Observes ProcessInjectionPoint<T, X> event) {
+        if (event.getInjectionPoint().getAnnotated().isAnnotationPresent(Component.class)) {
+            event.setInjectionPoint(new DelegatingInjectionPoint(event.getInjectionPoint()) {
+                public Set<Annotation> getQualifiers() {
+                    Set<Annotation> annotations = new HashSet<>(delegate.getQualifiers());
+                    annotations.add(new AnnotationLiteral<Service>() { });
+                    return annotations;
+                }
+            });
         }
     }
 
@@ -110,7 +119,7 @@ public class OsgiExtension implements Extension {
                     @Override
                     public void inject(T instance, CreationalContext<T> ctx) {
                         super.inject(instance, ctx);
-                        for (InjectionPoint injectionPoint : delegate.getInjectionPoints()) {
+                        for (InjectionPoint injectionPoint : getInjectionPoints()) {
                             ComponentDescriptor descriptor = componentRegistry.getDescriptor(injectionPoint.getBean());
                             descriptor.inject(instance, injectionPoint);
                         }
