@@ -46,6 +46,7 @@ import org.apache.felix.scr.impl.config.RegionConfigurationSupport;
 import org.apache.felix.scr.impl.config.ScrConfiguration;
 import org.apache.felix.scr.impl.config.TargetedPID;
 import org.apache.felix.scr.impl.helper.ComponentMethods;
+import org.apache.felix.scr.impl.helper.SimpleLogger;
 import org.apache.felix.scr.impl.manager.AbstractComponentManager;
 import org.apache.felix.scr.impl.manager.ComponentContextImpl;
 import org.apache.felix.scr.impl.manager.DependencyManager;
@@ -69,7 +70,7 @@ import org.osgi.service.component.ComponentException;
 import org.osgi.service.log.LogService;
 
 
-public class ComponentRegistry implements ComponentActivator {
+public class ComponentRegistry implements ComponentActivator, SimpleLogger {
 
     private final BeanManager beanManager;
     private final BundleContext bundleContext;
@@ -241,7 +242,7 @@ public class ComponentRegistry implements ComponentActivator {
 
     @Override
     public RegionConfigurationSupport setRegionConfigurationSupport(ServiceReference<ConfigurationAdmin> reference) {
-        RegionConfigurationSupport trialRcs = new RegionConfigurationSupport(reference) {
+        RegionConfigurationSupport trialRcs = new RegionConfigurationSupport(this, reference) {
             protected Collection<ComponentHolder<?>> getComponentHolders(TargetedPID pid) {
                 return getComponentHoldersByPid(pid);
             }
@@ -386,6 +387,16 @@ public class ComponentRegistry implements ComponentActivator {
         if (ex != null) {
             ex.printStackTrace(System.err);
         }
+    }
+
+    @Override
+    public void log(int level, String message, Throwable ex) {
+        log(level, message, null, ex);
+    }
+
+    @Override
+    public void log(int level, String message, Object[] arguments, Throwable ex) {
+        log(level, message, arguments, null, 0L, ex);
     }
 
     private static class ListenerInfo implements ServiceListener {
