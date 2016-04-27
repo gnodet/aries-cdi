@@ -37,14 +37,14 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.felix.scr.impl.config.ComponentActivator;
-import org.apache.felix.scr.impl.config.ComponentContainer;
-import org.apache.felix.scr.impl.config.ComponentHolder;
-import org.apache.felix.scr.impl.config.ConfigAdminTracker;
-import org.apache.felix.scr.impl.config.ConfigurableComponentHolder;
-import org.apache.felix.scr.impl.config.RegionConfigurationSupport;
-import org.apache.felix.scr.impl.config.ScrConfiguration;
-import org.apache.felix.scr.impl.config.TargetedPID;
+import org.apache.felix.scr.impl.manager.ComponentActivator;
+import org.apache.felix.scr.impl.manager.ComponentContainer;
+import org.apache.felix.scr.impl.manager.ComponentHolder;
+import org.apache.felix.scr.impl.helper.ConfigAdminTracker;
+import org.apache.felix.scr.impl.manager.ConfigurableComponentHolder;
+import org.apache.felix.scr.impl.manager.RegionConfigurationSupport;
+import org.apache.felix.scr.impl.manager.ScrConfiguration;
+import org.apache.felix.scr.impl.metadata.TargetedPID;
 import org.apache.felix.scr.impl.helper.ComponentMethods;
 import org.apache.felix.scr.impl.helper.SimpleLogger;
 import org.apache.felix.scr.impl.manager.AbstractComponentManager;
@@ -82,7 +82,7 @@ public class ComponentRegistry implements ComponentActivator, SimpleLogger {
     ConfigAdminTracker configAdminTracker;
 
     private final AtomicBoolean m_active = new AtomicBoolean(false);
-    private final ScrConfiguration m_configuration = new ScrConfiguration(null);
+    private final ScrConfiguration m_configuration = new ScrConfigurationImpl();
     private final Map<String, ListenerInfo> listenerMap = new HashMap<>();
     private final Map<ExtendedServiceListener, ServiceListener> privateListeners = new HashMap<>();
     private final AtomicInteger componentId = new AtomicInteger();
@@ -346,7 +346,7 @@ public class ComponentRegistry implements ComponentActivator, SimpleLogger {
             // only return the entry if non-null and not a reservation
             if (set != null) {
                 for (ComponentHolder<?> holder : set) {
-                    if (targetedPid.matchesTarget(holder)) {
+                    if (targetedPid.matchesTarget(holder.getActivator().getBundleContext().getBundle())) {
                         componentHoldersUsingPid.add(holder);
                     }
                 }
@@ -548,6 +548,39 @@ public class ComponentRegistry implements ComponentActivator, SimpleLogger {
         protected void disposeImplementationObject(ComponentContextImpl<S> componentContext, int reason) {
             ComponentDescriptor descriptor = (ComponentDescriptor) getComponentMetadata();
             descriptor.deactivate(componentContext);
+        }
+
+    }
+
+    static class ScrConfigurationImpl implements ScrConfiguration {
+        @Override
+        public int getLogLevel() {
+            return 0;
+        }
+
+        @Override
+        public boolean isFactoryEnabled() {
+            return false;
+        }
+
+        @Override
+        public boolean keepInstances() {
+            return false;
+        }
+
+        @Override
+        public boolean infoAsService() {
+            return false;
+        }
+
+        @Override
+        public long lockTimeout() {
+            return DEFAULT_LOCK_TIMEOUT_MILLISECONDS;
+        }
+
+        @Override
+        public long stopTimeout() {
+            return DEFAULT_STOP_TIMEOUT_MILLISECONDS;
         }
 
     }
