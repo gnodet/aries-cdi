@@ -17,17 +17,20 @@
 package org.apache.aries.cdi.impl.osgi;
 
 import javax.enterprise.context.ApplicationScoped;
+import javax.enterprise.context.Dependent;
 import javax.enterprise.context.Initialized;
 import javax.enterprise.context.spi.CreationalContext;
 import javax.enterprise.event.Observes;
 import javax.enterprise.inject.spi.AfterBeanDiscovery;
 import javax.enterprise.inject.spi.Annotated;
 import javax.enterprise.inject.spi.Bean;
+import javax.enterprise.inject.spi.BeanAttributes;
 import javax.enterprise.inject.spi.BeanManager;
 import javax.enterprise.inject.spi.BeforeBeanDiscovery;
 import javax.enterprise.inject.spi.Extension;
 import javax.enterprise.inject.spi.InjectionPoint;
 import javax.enterprise.inject.spi.ProcessBean;
+import javax.enterprise.inject.spi.ProcessBeanAttributes;
 import javax.enterprise.inject.spi.ProcessInjectionPoint;
 import javax.enterprise.inject.spi.ProcessInjectionTarget;
 import javax.enterprise.inject.spi.ProcessObserverMethod;
@@ -39,11 +42,15 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.apache.aries.cdi.api.Bundle;
 import org.apache.aries.cdi.api.Component;
 import org.apache.aries.cdi.api.Config;
+import org.apache.aries.cdi.api.Prototype;
 import org.apache.aries.cdi.api.Service;
+import org.apache.aries.cdi.api.Singleton;
 import org.apache.aries.cdi.api.event.ReferenceEvent;
 import org.apache.aries.cdi.impl.osgi.support.BundleContextHolder;
+import org.apache.aries.cdi.impl.osgi.support.DelegatingBeanAttributes;
 import org.apache.aries.cdi.impl.osgi.support.DelegatingInjectionPoint;
 import org.apache.aries.cdi.impl.osgi.support.DelegatingInjectionTarget;
 import org.apache.aries.cdi.impl.osgi.support.Filters;
@@ -66,7 +73,28 @@ public class OsgiExtension implements Extension {
         componentRegistry = new ComponentRegistry(manager, BundleContextHolder.getBundleContext());
         event.addAnnotatedType(manager.createAnnotatedType(EventBridge.class));
         event.addAnnotatedType(manager.createAnnotatedType(BundleContextProducer.class));
-        event.addScope(Component.class, false, false);
+//        event.addScope(Singleton.class, false, false);
+//        event.addScope(Bundle.class, false, false);
+//        event.addScope(Prototype.class, false, false);
+    }
+
+    public <T> void processBeanAttributes(@Observes ProcessBeanAttributes<T> event) {
+        if (event.getAnnotated().isAnnotationPresent(Component.class)) {
+            BeanAttributes<T> attr = event.getBeanAttributes();
+            Class<? extends Annotation> scope = attr.getScope();
+            if (scope == Singleton.class || scope == Bundle.class || scope == Prototype.class) {
+                // nothing
+            } else if (scope == Dependent.class){
+                event.setBeanAttributes(new DelegatingBeanAttributes<T>(attr) {
+                    @Override
+                    public Class<? extends Annotation> getScope() {
+                        return Singleton.class;
+                    }
+                });
+            } else {
+                event.addDefinitionError(new IllegalArgumentException("Unsupported scope " + scope.getSimpleName()));
+            }
+        }
     }
 
     public <T> void processBean(@Observes ProcessBean<T> event) {
@@ -77,7 +105,7 @@ public class OsgiExtension implements Extension {
             if (ip.getAnnotated().isAnnotationPresent(Service.class)
                     || ip.getAnnotated().isAnnotationPresent(Component.class)
                     || ip.getAnnotated().isAnnotationPresent(Config.class)) {
-                if (bean.getScope() != Component.class) {
+                if (!event.getAnnotated().isAnnotationPresent(Component.class)) {
                     event.addDefinitionError(new IllegalArgumentException(
                             "Beans with @Service, @Component or @Config injection points " +
                                     "should be annotated with @Component"));
@@ -163,7 +191,9 @@ public class OsgiExtension implements Extension {
     }
 
     public void afterBeanDiscovery(@Observes AfterBeanDiscovery event) {
-        event.addContext(new ComponentContext());
+        event.addContext(new SingletonContext());
+        event.addContext(new BundleContext(componentRegistry));
+        event.addContext(new PrototypeContext(componentRegistry));
         componentRegistry.preStart(event);
     }
 

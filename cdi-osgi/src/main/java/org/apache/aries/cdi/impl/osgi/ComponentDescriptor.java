@@ -42,6 +42,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 import org.apache.aries.cdi.api.Attribute;
+import org.apache.aries.cdi.api.Bundle;
 import org.apache.aries.cdi.api.Component;
 import org.apache.aries.cdi.api.Config;
 import org.apache.aries.cdi.api.Contract;
@@ -52,6 +53,7 @@ import org.apache.aries.cdi.api.Immediate;
 import org.apache.aries.cdi.api.Optional;
 import org.apache.aries.cdi.api.Properties;
 import org.apache.aries.cdi.api.Property;
+import org.apache.aries.cdi.api.Prototype;
 import org.apache.aries.cdi.api.Service;
 import org.apache.aries.cdi.impl.osgi.support.Configurable;
 import org.apache.aries.cdi.impl.osgi.support.Filters;
@@ -131,6 +133,13 @@ public class ComponentDescriptor extends ComponentMetadata {
             }
             for (String name : names) {
                 serviceMetadata.addProvide(name);
+            }
+            if (bean.getScope() == Prototype.class) {
+                serviceMetadata.setScope("prototype");
+            } else if (bean.getScope() == Bundle.class) {
+                serviceMetadata.setScope("bundle");
+            } else {
+                serviceMetadata.setScope("singleton");
             }
         } else {
             addAllClasses(serviceMetadata, bean.getBeanClass());
@@ -232,6 +241,10 @@ public class ComponentDescriptor extends ComponentMetadata {
         }
     }
 
+    public ComponentContext getComponentContext() {
+        return context.get();
+    }
+
     @SuppressWarnings("unchecked")
     protected Object createConfig(Class<?> clazz) {
         ComponentContext cc = context.get();
@@ -289,7 +302,7 @@ public class ComponentDescriptor extends ComponentMetadata {
         this.context.set(cc);
         try {
             BeanManager beanManager = registry.getBeanManager();
-            Context context = beanManager.getContext(Component.class);
+            Context context = beanManager.getContext(bean.getScope());
             return context.get(bean, beanManager.createCreationalContext(bean));
         } finally {
             this.context.set(null);
@@ -300,7 +313,7 @@ public class ComponentDescriptor extends ComponentMetadata {
         this.context.set(cc);
         try {
             BeanManager beanManager = registry.getBeanManager();
-            AlterableContext context = (AlterableContext) beanManager.getContext(Component.class);
+            AlterableContext context = (AlterableContext) beanManager.getContext(bean.getScope());
             context.destroy(bean);
         } finally {
             this.context.set(null);

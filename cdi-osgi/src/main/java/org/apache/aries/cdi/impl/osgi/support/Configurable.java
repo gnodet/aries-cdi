@@ -28,6 +28,7 @@ import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Dictionary;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -348,7 +349,7 @@ public final class Configurable {
             if (value.getClass().isArray()) {
                 if (value.getClass().getComponentType().isPrimitive()) {
                     int length = Array.getLength(value);
-                    List<Object> result = new ArrayList<Object>(length);
+                    List<Object> result = new ArrayList<>(length);
                     for (int i = 0; i < length; i++) {
                         result.add(Array.get(value, i));
                     }
@@ -365,7 +366,7 @@ public final class Configurable {
                 return Arrays.asList(str.split("\\s*,\\s*"));
             }
 
-            return Arrays.asList(value);
+            return Collections.singletonList(value);
         }
 
         private Map<?, ?> toMap(String prefix, Object value) {
@@ -413,13 +414,13 @@ public final class Configurable {
         }
     }
 
-    private static final Boolean DEFAULT_BOOLEAN = Boolean.FALSE;
-    private static final Byte DEFAULT_BYTE = new Byte((byte) 0);
-    private static final Short DEFAULT_SHORT = new Short((short) 0);
-    private static final Integer DEFAULT_INT = new Integer(0);
-    private static final Long DEFAULT_LONG = new Long(0);
-    private static final Float DEFAULT_FLOAT = new Float(0.0f);
-    private static final Double DEFAULT_DOUBLE = new Double(0.0);
+    private static final Boolean DEFAULT_BOOLEAN = false;
+    private static final Byte DEFAULT_BYTE = (byte) 0;
+    private static final Short DEFAULT_SHORT = (short) 0;
+    private static final Integer DEFAULT_INT = 0;
+    private static final Long DEFAULT_LONG = 0L;
+    private static final Float DEFAULT_FLOAT = 0.0f;
+    private static final Double DEFAULT_DOUBLE = 0.0;
 
     /**
      * Creates a configuration for a given type backed by a given dictionary.
@@ -429,7 +430,7 @@ public final class Configurable {
      * @return an instance of the given type that wraps the given configuration.
      */
     public static <T> T create(Class<T> type, Dictionary<?, ?> config) {
-        Map<Object, Object> map = new HashMap<Object, Object>();
+        Map<Object, Object> map = new HashMap<>();
         for (Enumeration<?> e = config.keys(); e.hasMoreElements();) {
             Object key = e.nextElement();
             map.put(key, config.get(key));

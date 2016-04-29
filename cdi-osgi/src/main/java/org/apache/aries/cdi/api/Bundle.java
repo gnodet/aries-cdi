@@ -30,6 +30,7 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
 @Target({METHOD, FIELD, PARAMETER, TYPE})
 @Retention(RUNTIME)
 @Qualifier
-public @interface Component {
+@Scope
+public @interface Bundle {
 
 }

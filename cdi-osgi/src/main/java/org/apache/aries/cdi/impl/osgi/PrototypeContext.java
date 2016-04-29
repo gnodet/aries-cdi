@@ -19,33 +19,41 @@ package org.apache.aries.cdi.impl.osgi;
 import javax.enterprise.context.spi.AlterableContext;
 import javax.enterprise.context.spi.Contextual;
 import javax.enterprise.context.spi.CreationalContext;
+import javax.enterprise.inject.spi.Bean;
+import javax.enterprise.inject.spi.BeanManager;
 import java.lang.annotation.Annotation;
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.apache.aries.cdi.api.Component;
+import org.apache.aries.cdi.api.Bundle;
+import org.apache.aries.cdi.api.Prototype;
 
-public class ComponentContext implements AlterableContext {
+public class PrototypeContext implements AlterableContext {
 
-    private Map<Contextual<?>, Holder<?>> store = new ConcurrentHashMap<>();
+    private final Map<Object, CreationalContext<?>> instanceMap = new IdentityHashMap<>();
+
+    private final ComponentRegistry registry;
+
+    public PrototypeContext(ComponentRegistry registry) {
+        this.registry = registry;
+    }
 
     @Override
     public Class<? extends Annotation> getScope() {
-        return Component.class;
+        return Prototype.class;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public <T> T get(Contextual<T> contextual, CreationalContext<T> creationalContext) {
-        return (T) store.computeIfAbsent(contextual,
-                c -> new Holder(c, creationalContext, c.create((CreationalContext) creationalContext))).instance;
+        T instance = contextual.create(creationalContext);
+        instanceMap.put(instance, creationalContext);
+        return instance;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public <T> T get(Contextual<T> contextual) {
-        Holder<?> h = store.get(contextual);
-        return h != null ? (T) h.instance : null;
+        return null;
     }
 
     @Override
@@ -53,33 +61,15 @@ public class ComponentContext implements AlterableContext {
         return true;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public void destroy(Contextual<?> contextual) {
-        Holder<?> h = store.remove(contextual);
-        if (h != null) {
-            h.destroy();
+        ComponentDescriptor desc = registry.getDescriptor((Bean) contextual);
+        Object instance = desc.getComponentContext().getComponentInstance().getInstance();
+        CreationalContext<Object> cc = (CreationalContext<Object>) instanceMap.get(instance);
+        if (cc != null) {
+            ((Contextual<Object>) contextual).destroy(instance, cc);
         }
     }
 
-    public void destroy() {
-        while (!store.isEmpty()) {
-            destroy(store.keySet().iterator().next());
-        }
-    }
-
-    static class Holder<T> {
-        final Contextual<T> contextual;
-        final CreationalContext<T> context;
-        final T instance;
-
-        public Holder(Contextual<T> contextual, CreationalContext<T> context, T instance) {
-            this.contextual = contextual;
-            this.context = context;
-            this.instance = instance;
-        }
-
-        public void destroy() {
-            this.contextual.destroy(instance, context);
-        }
-    }
 }

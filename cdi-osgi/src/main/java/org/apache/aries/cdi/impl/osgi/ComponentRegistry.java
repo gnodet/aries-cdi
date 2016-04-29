@@ -36,6 +36,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import org.apache.felix.scr.impl.manager.ComponentActivator;
 import org.apache.felix.scr.impl.manager.ComponentContainer;
@@ -44,6 +45,7 @@ import org.apache.felix.scr.impl.helper.ConfigAdminTracker;
 import org.apache.felix.scr.impl.manager.ConfigurableComponentHolder;
 import org.apache.felix.scr.impl.manager.RegionConfigurationSupport;
 import org.apache.felix.scr.impl.manager.ScrConfiguration;
+import org.apache.felix.scr.impl.manager.ServiceFactoryComponentManager;
 import org.apache.felix.scr.impl.metadata.TargetedPID;
 import org.apache.felix.scr.impl.helper.ComponentMethods;
 import org.apache.felix.scr.impl.helper.SimpleLogger;
@@ -53,10 +55,8 @@ import org.apache.felix.scr.impl.manager.DependencyManager;
 import org.apache.felix.scr.impl.manager.ExtendedServiceEvent;
 import org.apache.felix.scr.impl.manager.ExtendedServiceListener;
 import org.apache.felix.scr.impl.manager.PrototypeServiceFactoryComponentManager;
-import org.apache.felix.scr.impl.manager.ServiceFactoryComponentManager;
 import org.apache.felix.scr.impl.manager.SingleComponentManager;
 import org.apache.felix.scr.impl.metadata.ComponentMetadata;
-import org.apache.felix.scr.impl.metadata.ServiceMetadata.Scope;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.Filter;
@@ -494,63 +494,86 @@ public class ComponentRegistry implements ComponentActivator, SimpleLogger {
 
         @Override
         protected AbstractComponentManager<S> createComponentManager(boolean factoryConfiguration) {
-            AbstractComponentManager<S> manager;
-            ComponentMetadata componentMetadata = getComponentMetadata();
-            if (componentMetadata.isFactory()) {
-                throw new IllegalStateException();
-            } else if (componentMetadata.getServiceScope() == Scope.bundle) {
-                manager = new ServiceFactoryComponentManager<>(this, componentMethods);
-            } else if (componentMetadata.getServiceScope() == Scope.prototype) {
-                manager = new PrototypeServiceFactoryComponentManager<>(this, componentMethods);
-            } else {
-                //immediate or delayed
-                manager = new CdiSingleComponentManager<>(this, componentMethods);
+            ComponentMetadata metadata = getComponentMetadata();
+            switch (metadata.getServiceScope()) {
+                case singleton:
+                    return new CdiSingletonComponentManager<>(this, componentMethods);
+                case bundle:
+                    return new CdiBundleComponentManager<>(this, componentMethods);
+                case prototype:
+                    return new CdiPrototypeComponentManager<>(this, componentMethods);
+                default:
+                    throw new IllegalStateException();
             }
-            return manager;
         }
 
     }
 
-    private static class CdiSingleComponentManager<S> extends SingleComponentManager<S> {
-        public CdiSingleComponentManager(ComponentContainer<S> container, ComponentMethods componentMethods) {
-            this(container, componentMethods, false);
+    private static class CdiPrototypeComponentManager<S> extends PrototypeServiceFactoryComponentManager<S> {
+        public CdiPrototypeComponentManager(ComponentContainer<S> container, ComponentMethods componentMethods) {
+            super(container, componentMethods);
         }
-        public CdiSingleComponentManager(ComponentContainer<S> container, ComponentMethods componentMethods, boolean factoryInstance) {
-            super(container, componentMethods, factoryInstance);
-        }
-
-        @Override
         protected S createImplementationObject(Bundle usingBundle, SetImplementationObject<S> setter, ComponentContextImpl<S> componentContext) {
-            ComponentDescriptor descriptor = (ComponentDescriptor) getComponentMetadata();
-            S s = (S) descriptor.activate(componentContext);
-
-            setter.presetComponentContext(componentContext);
-            componentContext.setImplementationObject( s );
-
-            try {
-                // componentContext.setImplementationAccessible( true );
-                Method mth = componentContext.getClass().getDeclaredMethod("setImplementationAccessible", boolean.class);
-                mth.setAccessible(true);
-                mth.invoke(componentContext, true);
-
-                // m_circularReferences.remove();
-                Field field = getClass().getSuperclass().getDeclaredField("m_circularReferences");
-                field.setAccessible(true);
-                ((ThreadLocal) field.get(this)).remove();
-            } catch (Throwable t) {
-                t.printStackTrace();
-            }
-
-            return s;
+            return doCreate(this, componentContext, setter::presetComponentContext);
         }
-
-        @Override
         protected void disposeImplementationObject(ComponentContextImpl<S> componentContext, int reason) {
-            ComponentDescriptor descriptor = (ComponentDescriptor) getComponentMetadata();
-            descriptor.deactivate(componentContext);
+            doDestroy(this, componentContext);
+        }
+    }
+
+    private static class CdiBundleComponentManager<S> extends ServiceFactoryComponentManager<S> {
+        public CdiBundleComponentManager(ComponentContainer<S> container, ComponentMethods componentMethods) {
+            super(container, componentMethods);
+        }
+        protected S createImplementationObject(Bundle usingBundle, SetImplementationObject<S> setter, ComponentContextImpl<S> componentContext) {
+            return doCreate(this, componentContext, setter::presetComponentContext);
+        }
+        protected void disposeImplementationObject(ComponentContextImpl<S> componentContext, int reason) {
+            doDestroy(this, componentContext);
+        }
+    }
+
+    private static class CdiSingletonComponentManager<S> extends SingleComponentManager<S> {
+        public CdiSingletonComponentManager(ComponentContainer<S> container, ComponentMethods componentMethods) {
+            super(container, componentMethods);
+        }
+        protected S createImplementationObject(Bundle usingBundle, SetImplementationObject<S> setter, ComponentContextImpl<S> componentContext) {
+            return doCreate(this, componentContext, setter::presetComponentContext);
+        }
+        protected void disposeImplementationObject(ComponentContextImpl<S> componentContext, int reason) {
+            doDestroy(this, componentContext);
+        }
+    }
+
+    private static <S> S doCreate(AbstractComponentManager<S> manager, ComponentContextImpl<S> componentContext, Consumer<ComponentContextImpl<S>> setter) {
+        ComponentDescriptor descriptor = (ComponentDescriptor) manager.getComponentMetadata();
+        S s = (S) descriptor.activate(componentContext);
+
+        componentContext.setImplementationObject( s );
+        setter.accept(componentContext);
+
+        try {
+            // componentContext.setImplementationAccessible( true );
+            Method mth = ComponentContextImpl.class.getDeclaredMethod("setImplementationAccessible", boolean.class);
+            mth.setAccessible(true);
+            mth.invoke(componentContext, true);
+
+            // m_circularReferences.remove();
+            Field field = SingleComponentManager.class.getDeclaredField("m_circularReferences");
+            field.setAccessible(true);
+            ((ThreadLocal) field.get(manager)).remove();
+        } catch (Throwable t) {
+            t.printStackTrace();
         }
 
+        return s;
     }
+
+    private static <S> void doDestroy(AbstractComponentManager<S> manager, ComponentContextImpl<S> componentContext) {
+        ComponentDescriptor descriptor = (ComponentDescriptor) manager.getComponentMetadata();
+        descriptor.deactivate(componentContext);
+    }
+
 
     static class ScrConfigurationImpl implements ScrConfiguration {
         @Override
