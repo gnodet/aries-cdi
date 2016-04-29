@@ -29,6 +29,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Proxy;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -56,10 +57,12 @@ import org.apache.aries.cdi.impl.osgi.support.Configurable;
 import org.apache.aries.cdi.impl.osgi.support.Filters;
 import org.apache.aries.cdi.impl.osgi.support.IterableInstance;
 import org.apache.aries.cdi.impl.osgi.support.SimpleBean;
+import org.apache.aries.cdi.impl.osgi.support.Types;
 import org.apache.felix.scr.impl.metadata.ComponentMetadata;
 import org.apache.felix.scr.impl.metadata.DSVersion;
 import org.apache.felix.scr.impl.metadata.ReferenceMetadata;
 import org.apache.felix.scr.impl.metadata.ServiceMetadata;
+import org.osgi.framework.wiring.BundleWiring;
 import org.osgi.service.component.ComponentContext;
 
 public class ComponentDescriptor extends ComponentMetadata {
@@ -223,7 +226,7 @@ public class ComponentDescriptor extends ComponentMetadata {
             reference.setPolicyOption(greedy ? "greedy" : "reluctant");
             addDependency(reference);
 
-            Supplier<Object> supplier = () -> getService(injectionPoint, multiple);
+            Supplier<Object> supplier = () -> getService(injectionPoint, multiple, dynamic);
             producers.add(new SimpleBean<>(clazz, Dependent.class, injectionPoint, supplier));
             instanceSuppliers.put(injectionPoint, supplier);
         }
@@ -236,24 +239,44 @@ public class ComponentDescriptor extends ComponentMetadata {
         return Configurable.create(clazz, cfg != null ? cfg : new Hashtable<>());
     }
 
-    protected Object getService(InjectionPoint injectionPoint, boolean isInstance) {
+    protected Object getService(InjectionPoint injectionPoint, boolean isInstance, boolean dynamic) {
         ComponentContext cc = context.get();
-        if (isInstance) {
+        if (dynamic && isInstance) {
             Iterable<Object> iterable = () -> new Iterator<Object>() {
                 final Object[] services = cc.locateServices(injectionPoint.toString());
                 int idx;
-                @Override
                 public boolean hasNext() {
                     return services != null && idx < services.length;
                 }
-
-                @Override
                 public Object next() {
                     return services[idx++];
                 }
             };
             return new IterableInstance<>(iterable);
-        } else {
+        }
+        else if (isInstance) {
+            final Object[] services = cc.locateServices(injectionPoint.toString());
+            Iterable<Object> iterable = () -> new Iterator<Object>() {
+                int idx;
+                public boolean hasNext() {
+                    return services != null && idx < services.length;
+                }
+                public Object next() {
+                    return services[idx++];
+                }
+            };
+            return new IterableInstance<>(iterable);
+        }
+        else if (dynamic) {
+            Class<Object> clazz = Types.getRawType(injectionPoint.getType());
+            ClassLoader cl = registry.getBundleContext().getBundle().adapt(BundleWiring.class).getClassLoader();
+            return Proxy.newProxyInstance(cl, new Class[]{ clazz },
+                    (p, method, args) -> {
+                        Object t = cc.locateService(injectionPoint.toString());
+                        return t != null ? method.invoke(t, args) : null;
+                    });
+        }
+        else {
             return cc.locateService(injectionPoint.toString());
         }
     }
