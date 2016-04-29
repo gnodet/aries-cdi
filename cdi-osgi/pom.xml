@@ -131,6 +131,13 @@
                             org.ops4j.pax.cdi.extension; extension=aries-cdi-osgi;
                                     version:Version=${version;====;${replace;${project.version};-;.}}
                         </Provide-Capability>
+                        <Private-Package>
+                            org.apache.aries.cdi.impl.*,
+                            org.apache.felix.scr.component,
+                            org.apache.felix.scr.impl.helper,
+                            org.apache.felix.scr.impl.manager,
+                            org.apache.felix.scr.impl.metadata
+                        </Private-Package>
                     </instructions>
                 </configuration>
             </plugin>
