@@ -20,7 +20,6 @@ import javax.enterprise.context.Dependent;
 import javax.enterprise.context.spi.AlterableContext;
 import javax.enterprise.context.spi.Context;
 import javax.enterprise.inject.Instance;
-import javax.enterprise.inject.spi.AfterBeanDiscovery;
 import javax.enterprise.inject.spi.AnnotatedField;
 import javax.enterprise.inject.spi.Bean;
 import javax.enterprise.inject.spi.BeanManager;
@@ -294,8 +293,8 @@ public class ComponentDescriptor extends ComponentMetadata {
         }
     }
 
-    public void preStart(AfterBeanDiscovery event) {
-        producers.forEach(event::addBean);
+    public List<Bean<?>> getProducers() {
+        return producers;
     }
 
     public Object activate(ComponentContext cc) {

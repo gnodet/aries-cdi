@@ -101,7 +101,10 @@ public class ComponentRegistry implements ComponentActivator, SimpleLogger {
     }
 
     public void preStart(AfterBeanDiscovery event) {
-        descriptors.values().forEach(d -> d.preStart(event));
+        descriptors.values().stream()
+                .map(ComponentDescriptor::getProducers)
+                .flatMap(Collection::stream)
+                .forEach(event::addBean);
     }
 
     public void start() {
