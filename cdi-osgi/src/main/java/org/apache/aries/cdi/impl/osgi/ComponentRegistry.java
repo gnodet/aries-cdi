@@ -38,11 +38,17 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+import org.apache.felix.scr.impl.helper.ComponentMethod;
+import org.apache.felix.scr.impl.helper.ConfigAdminTracker;
+import org.apache.felix.scr.impl.helper.InitReferenceMethod;
+import org.apache.felix.scr.impl.helper.MethodResult;
+import org.apache.felix.scr.impl.helper.ReferenceMethod;
+import org.apache.felix.scr.impl.helper.ReferenceMethods;
 import org.apache.felix.scr.impl.manager.ComponentActivator;
 import org.apache.felix.scr.impl.manager.ComponentContainer;
 import org.apache.felix.scr.impl.manager.ComponentHolder;
-import org.apache.felix.scr.impl.helper.ConfigAdminTracker;
 import org.apache.felix.scr.impl.manager.ConfigurableComponentHolder;
+import org.apache.felix.scr.impl.manager.RefPair;
 import org.apache.felix.scr.impl.manager.RegionConfigurationSupport;
 import org.apache.felix.scr.impl.manager.ScrConfiguration;
 import org.apache.felix.scr.impl.manager.ServiceFactoryComponentManager;
@@ -489,15 +495,19 @@ public class ComponentRegistry implements ComponentActivator, SimpleLogger {
 
     private static class CdiComponentHolder<S> extends ConfigurableComponentHolder<S> {
 
-        private final ComponentMethods componentMethods = new ComponentMethods();
-
         public CdiComponentHolder(ComponentActivator activator, ComponentMetadata metadata) {
             super(activator, metadata);
         }
 
         @Override
+        protected ComponentMethods createComponentMethods() {
+            return new EmptyMethods();
+        }
+
+        @Override
         protected AbstractComponentManager<S> createComponentManager(boolean factoryConfiguration) {
             ComponentMetadata metadata = getComponentMetadata();
+            ComponentMethods componentMethods = getComponentMethods();
             switch (metadata.getServiceScope()) {
                 case singleton:
                     return new CdiSingletonComponentManager<>(this, componentMethods);
@@ -510,6 +520,62 @@ public class ComponentRegistry implements ComponentActivator, SimpleLogger {
             }
         }
 
+    }
+
+    private static class EmptyMethods implements ComponentMethods, ReferenceMethods, ReferenceMethod {
+        @Override
+        public void initComponentMethods(ComponentMetadata componentMetadata, Class<?> implementationObjectClass) {
+        }
+
+        @Override
+        public ComponentMethod getActivateMethod() {
+            return null;
+        }
+
+        @Override
+        public ComponentMethod getDeactivateMethod() {
+            return null;
+        }
+
+        @Override
+        public ComponentMethod getModifiedMethod() {
+            return null;
+        }
+
+        @Override
+        public ReferenceMethods getBindMethods(String refName) {
+            return this;
+        }
+
+        @Override
+        public ReferenceMethod getBind() {
+            return this;
+        }
+
+        @Override
+        public ReferenceMethod getUnbind() {
+            return null;
+        }
+
+        @Override
+        public ReferenceMethod getUpdated() {
+            return null;
+        }
+
+        @Override
+        public InitReferenceMethod getInit() {
+            return null;
+        }
+
+        @Override
+        public MethodResult invoke(Object componentInstance, ComponentContextImpl<?> componentContext, RefPair<?, ?> refPair, MethodResult methodCallFailureResult, SimpleLogger logger) {
+            return null;
+        }
+
+        @Override
+        public <S, T> boolean getServiceObject(ComponentContextImpl<S> key, RefPair<S, T> refPair, BundleContext context, SimpleLogger logger) {
+            return true;
+        }
     }
 
     private static class CdiPrototypeComponentManager<S> extends PrototypeServiceFactoryComponentManager<S> {

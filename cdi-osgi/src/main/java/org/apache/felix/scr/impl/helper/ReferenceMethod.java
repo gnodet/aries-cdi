@@ -30,8 +30,10 @@ import org.osgi.framework.BundleContext;
  */
 public interface ReferenceMethod
 {
-    MethodResult invoke( final Object componentInstance, final BindParameters rawParameter,
-            final MethodResult methodCallFailureResult, SimpleLogger logger );
+    MethodResult invoke( final Object componentInstance,
+                         final ComponentContextImpl<?> componentContext,
+                         final RefPair<?, ?> refPair,
+                         final MethodResult methodCallFailureResult, SimpleLogger logger );
 
     <S, T> boolean getServiceObject( ComponentContextImpl<S> key, RefPair<S, T> refPair, BundleContext context, SimpleLogger logger );
 }
