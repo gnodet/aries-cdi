@@ -22,22 +22,15 @@ import javax.inject.Inject;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.apache.aries.cdi.api.Bundle;
 import org.apache.aries.cdi.api.Component;
 import org.apache.aries.cdi.api.Prototype;
 import org.apache.aries.cdi.api.Service;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
-import org.ops4j.pax.tinybundles.core.TinyBundles;
-import org.osgi.framework.Constants;
-import org.osgi.framework.ServiceObjects;
-import org.osgi.framework.ServiceReference;
 
 public class InnerScopeTest extends AbstractTest {
 
     @Test
-    @Ignore("Need to be fixed asap")
     public void test() throws Exception {
         createCdi(Hello.class, Component1.class, Component2.class);
 

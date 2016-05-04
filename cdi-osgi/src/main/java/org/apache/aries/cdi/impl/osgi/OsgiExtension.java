@@ -35,12 +35,16 @@ import javax.enterprise.inject.spi.ProcessInjectionPoint;
 import javax.enterprise.inject.spi.ProcessInjectionTarget;
 import javax.enterprise.inject.spi.ProcessObserverMethod;
 import javax.enterprise.util.AnnotationLiteral;
+import javax.inject.Qualifier;
 import java.lang.annotation.Annotation;
+import java.lang.annotation.Retention;
+import java.lang.annotation.Target;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import org.apache.aries.cdi.api.Bundle;
 import org.apache.aries.cdi.api.Component;
@@ -56,6 +60,12 @@ import org.apache.aries.cdi.impl.osgi.support.DelegatingInjectionTarget;
 import org.apache.aries.cdi.impl.osgi.support.Filters;
 import org.apache.aries.cdi.impl.osgi.support.Types;
 import org.osgi.framework.Constants;
+
+import static java.lang.annotation.ElementType.FIELD;
+import static java.lang.annotation.ElementType.METHOD;
+import static java.lang.annotation.ElementType.PARAMETER;
+import static java.lang.annotation.ElementType.TYPE;
+import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
 @ApplicationScoped
 public class OsgiExtension implements Extension {
@@ -73,9 +83,6 @@ public class OsgiExtension implements Extension {
         componentRegistry = new ComponentRegistry(manager, BundleContextHolder.getBundleContext());
         event.addAnnotatedType(manager.createAnnotatedType(EventBridge.class));
         event.addAnnotatedType(manager.createAnnotatedType(BundleContextProducer.class));
-//        event.addScope(Singleton.class, false, false);
-//        event.addScope(Bundle.class, false, false);
-//        event.addScope(Prototype.class, false, false);
     }
 
     public <T> void processBeanAttributes(@Observes ProcessBeanAttributes<T> event) {
@@ -101,18 +108,18 @@ public class OsgiExtension implements Extension {
         @SuppressWarnings("unchecked")
         Bean<Object> bean = (Bean) event.getBean();
         ComponentDescriptor descriptor = null;
+        if (event.getAnnotated().isAnnotationPresent(Component.class)) {
+            descriptor = componentRegistry.addComponent(bean);
+        }
         for (InjectionPoint ip : event.getBean().getInjectionPoints()) {
             if (ip.getAnnotated().isAnnotationPresent(Service.class)
                     || ip.getAnnotated().isAnnotationPresent(Component.class)
                     || ip.getAnnotated().isAnnotationPresent(Config.class)) {
-                if (!event.getAnnotated().isAnnotationPresent(Component.class)) {
+                if (descriptor == null) {
                     event.addDefinitionError(new IllegalArgumentException(
                             "Beans with @Service, @Component or @Config injection points " +
                                     "should be annotated with @Component"));
                 } else {
-                    if (descriptor == null) {
-                        descriptor = componentRegistry.addComponent(bean);
-                    }
                     try {
                         descriptor.addInjectionPoint(ip);
                     } catch (IllegalStateException e) {
@@ -121,16 +128,16 @@ public class OsgiExtension implements Extension {
                 }
             }
         }
-        if (descriptor == null && event.getAnnotated().isAnnotationPresent(Service.class)) {
-            descriptor = componentRegistry.addComponent(bean);
-        }
     }
+
     public <T, X> void processInjectionPoint(@Observes ProcessInjectionPoint<T, X> event) {
         if (event.getInjectionPoint().getAnnotated().isAnnotationPresent(Component.class)) {
+            final String id = UUID.randomUUID().toString();
             event.setInjectionPoint(new DelegatingInjectionPoint(event.getInjectionPoint()) {
                 public Set<Annotation> getQualifiers() {
                     Set<Annotation> annotations = new HashSet<>(delegate.getQualifiers());
                     annotations.add(new AnnotationLiteral<Service>() { });
+                    annotations.add(new UniqueIdentifierLitteral(id));
                     return annotations;
                 }
             });
@@ -199,6 +206,24 @@ public class OsgiExtension implements Extension {
 
     public void applicationScopeInitialized(@Observes @Initialized(ApplicationScoped.class) Object init) {
         componentRegistry.start();
+    }
+
+    @Target({METHOD, FIELD, PARAMETER, TYPE})
+    @Retention(RUNTIME)
+    @Qualifier
+    public @interface UniqueIdentifier {
+        String id();
+    }
+
+    static class UniqueIdentifierLitteral extends AnnotationLiteral<UniqueIdentifier> implements UniqueIdentifier {
+        private final String id;
+        public UniqueIdentifierLitteral(String id) {
+            this.id = id;
+        }
+        @Override
+        public String id() {
+            return id;
+        }
     }
 
 }

@@ -133,16 +133,16 @@ public class ComponentDescriptor extends ComponentMetadata {
             for (String name : names) {
                 serviceMetadata.addProvide(name);
             }
-            if (bean.getScope() == Prototype.class) {
-                serviceMetadata.setScope("prototype");
-            } else if (bean.getScope() == Bundle.class) {
-                serviceMetadata.setScope("bundle");
-            } else {
-                serviceMetadata.setScope("singleton");
-            }
         } else {
             addAllClasses(serviceMetadata, bean.getBeanClass());
             getProperties().put(PrivateRegistryWrapper.PRIVATE, true);
+        }
+        if (bean.getScope() == Prototype.class) {
+            serviceMetadata.setScope("prototype");
+        } else if (bean.getScope() == Bundle.class) {
+            serviceMetadata.setScope("bundle");
+        } else {
+            serviceMetadata.setScope("singleton");
         }
 
         String name = bean.getName();
@@ -163,7 +163,7 @@ public class ComponentDescriptor extends ComponentMetadata {
         for (Class<?> itf : beanClass.getInterfaces()) {
             addAllClasses(serviceMetadata, itf);
         }
-        if (beanClass != Object.class) {
+        if (beanClass.getSuperclass() != null) {
             addAllClasses(serviceMetadata, beanClass.getSuperclass());
         }
     }
